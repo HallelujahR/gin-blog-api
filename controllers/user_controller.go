@@ -1,9 +1,11 @@
 package controllers
 
 import (
+	"api/middleware"
 	"api/service"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -42,7 +44,23 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "账号或密码错误"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": user})
+
+	// 创建会话并返回token
+	session, err := middleware.CreateSession(user.ID, c.GetHeader("User-Agent"), c.ClientIP())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		return
+	}
+
+	// 更新最后登录时间
+	now := time.Now()
+	user.LastLoginAt = &now
+	service.UpdateUser(user)
+
+	c.JSON(http.StatusOK, gin.H{
+		"user":  user,
+		"token": session.SessionToken,
+	})
 }
 
 // 查详情

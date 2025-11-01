@@ -38,3 +38,10 @@ func UpdateUser(user *models.User) error {
 func DeleteUser(id uint64) error {
 	return database.GetDB().Delete(&models.User{}, id).Error
 }
+
+// 用户列表
+func ListAllUsers() ([]models.User, error) {
+	var users []models.User
+	err := database.GetDB().Find(&users).Error
+	return users, err
+}
