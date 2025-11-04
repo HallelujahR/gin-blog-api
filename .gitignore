@@ -1,4 +1,17 @@
-# 上传文件目录（如果.gitignore不存在，可以手动添加到.gitignore）
+# Go 编译产物
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+api
+/blog/api
+
+# 测试覆盖率文件
+*.out
+*.test
+
+# 上传文件目录
 uploads/
 *.jpg
 *.jpeg
@@ -11,4 +24,26 @@ uploads/
 *.docx
 *.zip
 *.rar
+
+# IDE 和编辑器文件
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
 
