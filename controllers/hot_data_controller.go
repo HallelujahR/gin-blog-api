@@ -34,13 +34,31 @@ func CreateHotData(c *gin.Context) {
 }
 
 func ListHotData(c *gin.Context) {
-	dt := c.Query("data_type")
-	period := c.Query("period")
-	list, err := service.ListHotData(dt, period)
+	// 获取查询参数
+	dataType := c.Query("data_type") // 可选：trending_posts, popular_tags, active_users
+	period := c.Query("period")      // 可选：daily, weekly, monthly, all_time
+
+	// 默认返回前10条热点数据
+	limit := 10
+
+	// 如果前端指定了limit参数，使用指定值（但最多不超过20条）
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			if parsedLimit > 20 {
+				limit = 20 // 最多返回20条
+			} else {
+				limit = parsedLimit
+			}
+		}
+	}
+
+	list, err := service.ListHotData(dataType, period, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
 	}
+
+	// 返回格式：{ list: [...] }，符合前端期望
 	c.JSON(http.StatusOK, gin.H{"list": list})
 }
 
