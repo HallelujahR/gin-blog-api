@@ -37,13 +37,41 @@ func CreatePost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"post": post})
 }
 
-// 获取文章详情
+// 获取文章详情（包含完整的分类和标签信息）
 func GetPost(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	post, err := service.GetPostByID(id)
+
+	// 使用GetPostWithFullRelations获取文章及其关联的分类和标签
+	post, categories, tags, err := service.GetPostWithFullRelations(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "不存在"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
 		return
+	}
+
+	// 确保返回空数组而不是nil
+	if categories == nil {
+		categories = []models.Category{}
+	}
+	if tags == nil {
+		tags = []models.Tag{}
+	}
+
+	// 提取分类和标签ID数组
+	categoryIDs := make([]uint64, len(categories))
+	for i, cat := range categories {
+		categoryIDs[i] = cat.ID
+	}
+	tagIDs := make([]uint64, len(tags))
+	for i, tag := range tags {
+		tagIDs[i] = tag.ID
+	}
+
+	// 将分类和标签数据添加到post对象中（供前端直接使用）
+	if post.CategoryIDs == nil {
+		post.CategoryIDs = categoryIDs
+	}
+	if post.TagIDs == nil {
+		post.TagIDs = tagIDs
 	}
 
 	// 确保返回的cover_image是完整URL
@@ -51,7 +79,38 @@ func GetPost(c *gin.Context) {
 		post.CoverImage = service.GetFullFileURL(post.CoverImage)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"post": post})
+	// 构建响应数据，符合前端期望的数据结构
+	// 将categories和tags直接添加到post对象中，方便前端直接使用
+	postWithRelations := gin.H{
+		"id":            post.ID,
+		"title":         post.Title,
+		"slug":          post.Slug,
+		"content":       post.Content,
+		"excerpt":       post.Excerpt,
+		"cover_image":   post.CoverImage,
+		"author_id":     post.AuthorID,
+		"status":        post.Status,
+		"visibility":    post.Visibility,
+		"view_count":    post.ViewCount,
+		"like_count":    post.LikeCount,
+		"comment_count": post.CommentCount,
+		"published_at":  post.PublishedAt,
+		"created_at":    post.CreatedAt,
+		"updated_at":    post.UpdatedAt,
+		"categories":    categories, // 直接包含完整的分类对象数组 [{id, name, slug}, ...]
+		"tags":          tags,       // 直接包含完整的标签对象数组 [{id, name, slug}, ...]
+		"category_ids":  categoryIDs,
+		"tag_ids":       tagIDs,
+	}
+
+	// 返回响应，post对象中包含完整的categories和tags
+	response := gin.H{
+		"post":       postWithRelations,
+		"categories": categories, // 顶层也返回，方便前端使用
+		"tags":       tags,       // 顶层也返回，方便前端使用
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // 文章列表

@@ -31,10 +31,26 @@ func CreatePage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"page": page})
 }
 func GetPage(c *gin.Context) {
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-	page, err := service.GetPageByID(id)
+	// 支持通过ID或slug获取
+	param := c.Param("id")
+	if param == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
+	}
+	
+	var page *models.Page
+	var err error
+	
+	// 尝试作为ID解析
+	if id, err := strconv.ParseUint(param, 10, 64); err == nil {
+		page, err = service.GetPageByID(id)
+	} else {
+		// 作为slug处理
+		page, err = service.GetPageBySlug(param)
+	}
+	
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "不存在"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "页面不存在"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"page": page})

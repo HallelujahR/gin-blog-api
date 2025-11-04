@@ -41,6 +41,7 @@ func InitRouter() *gin.Engine {
 	adminRoutes.RegisterAdminCategoryRoutes(r)
 	adminRoutes.RegisterAdminTagRoutes(r)
 	adminRoutes.RegisterAdminCommentRoutes(r)
+	adminRoutes.RegisterAdminPageRoutes(r)   // 页面管理接口
 	adminRoutes.RegisterAdminUploadRoutes(r) // 文件上传接口
 
 	return r

@@ -11,6 +11,11 @@ func CreatePage(page *models.Page) error {
 func GetPageByID(id uint64) (*models.Page, error) {
 	return dao.GetPageByID(id)
 }
+
+// GetPageBySlug 通过slug获取已发布的页面
+func GetPageBySlug(slug string) (*models.Page, error) {
+	return dao.GetPageBySlug(slug)
+}
 func ListPages() ([]models.Page, error) {
 	return dao.ListPages()
 }
