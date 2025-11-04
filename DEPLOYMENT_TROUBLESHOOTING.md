@@ -1,5 +1,77 @@
 # 部署问题排查指南
 
+## Docker服务启动失败
+
+### 错误信息
+```
+Job for docker.service failed because the control process exited with error code.
+See "systemctl status docker.service" and "journalctl -xe" for details.
+```
+
+### 原因
+- `/etc/docker/daemon.json` 配置文件格式错误（JSON语法问题）
+- Docker配置选项不兼容
+- 系统资源不足
+
+### 解决方案
+
+#### 方案1：使用修复脚本（推荐）
+```bash
+cd /opt/blog/api
+chmod +x scripts/fix-docker-service.sh
+sudo ./scripts/fix-docker-service.sh
+```
+
+#### 方案2：手动修复配置文件
+```bash
+# 1. 检查配置文件
+sudo cat /etc/docker/daemon.json
+
+# 2. 验证JSON格式（如果有Python）
+python3 -m json.tool /etc/docker/daemon.json
+
+# 3. 如果JSON格式错误，删除配置文件
+sudo rm /etc/docker/daemon.json
+
+# 4. 重启Docker服务
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+# 5. 验证服务状态
+sudo systemctl status docker.service
+```
+
+#### 方案3：查看详细错误
+```bash
+# 查看Docker服务状态
+sudo systemctl status docker.service
+
+# 查看详细日志
+sudo journalctl -xe -u docker.service --no-pager | tail -50
+
+# 查看Docker守护进程日志
+sudo journalctl -u docker.service -n 100
+```
+
+#### 方案4：最小化配置
+```bash
+# 创建最小化配置（只包含镜像加速器）
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+  "registry-mirrors": [
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://hub-mirror.c.163.com"
+  ]
+}
+EOF
+
+# 重启Docker
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+---
+
 ## Docker镜像拉取超时
 
 ### 错误信息
