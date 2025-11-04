@@ -36,9 +36,47 @@ echo "✅ 使用Docker Compose命令: $DOCKER_COMPOSE_CMD"
 # 检查.env文件
 if [ ! -f .env ]; then
     echo "⚠️  .env文件不存在，正在从.env.example创建..."
-    cp .env.example .env
+    if [ -f env.template ]; then
+        cp env.template .env
+    elif [ -f .env.example ]; then
+        cp .env.example .env
+    else
+        echo "❌ 找不到环境变量模板文件"
+        exit 1
+    fi
     echo "📝 请编辑.env文件配置数据库和API地址"
     exit 1
+fi
+
+# 检查并配置Docker镜像加速器（如果需要）
+echo "🔍 检查Docker镜像加速器配置..."
+if ! docker info 2>/dev/null | grep -q "Registry Mirrors"; then
+    echo "⚠️  未检测到Docker镜像加速器配置"
+    echo "💡 建议配置镜像加速器以加快镜像拉取速度（特别是中国大陆服务器）"
+    read -p "是否现在配置镜像加速器？(y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if [ -f scripts/configure-docker-mirror.sh ]; then
+            echo "🔧 运行镜像加速器配置脚本..."
+            sudo ./scripts/configure-docker-mirror.sh
+        else
+            echo "⚠️  配置脚本不存在，使用手动配置..."
+            sudo mkdir -p /etc/docker
+            sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+  "registry-mirrors": [
+    "https://docker.mirrors.ustc.edu.cn",
+    "https://hub-mirror.c.163.com",
+    "https://mirror.baidubce.com"
+  ]
+}
+EOF
+            sudo systemctl daemon-reload
+            sudo systemctl restart docker || echo "⚠️  Docker重启失败，请手动检查"
+        fi
+    else
+        echo "⏭️  跳过镜像加速器配置，继续部署..."
+    fi
 fi
 
 # 拉取最新代码（如果是从GitHub部署）
@@ -50,6 +88,14 @@ fi
 # 停止旧容器
 echo "🛑 停止旧容器..."
 $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down || true
+
+# 预先拉取基础镜像（避免构建时超时）
+echo "📥 预先拉取基础镜像..."
+echo "💡 如果镜像拉取超时，请配置镜像加速器：sudo ./scripts/configure-docker-mirror.sh"
+docker pull golang:1.23-alpine || echo "⚠️  golang镜像拉取失败，将在构建时重试"
+docker pull mysql:8.0 || echo "⚠️  mysql镜像拉取失败，将在构建时重试"
+docker pull nginx:alpine || echo "⚠️  nginx镜像拉取失败，将在构建时重试"
+docker pull node:18-alpine || echo "⚠️  node镜像拉取失败，将在构建时重试"
 
 # 构建镜像
 echo "🔨 构建Docker镜像..."
