@@ -24,7 +24,19 @@ type Post struct {
 	PublishedAt   *time.Time `gorm:"comment:发布时间" json:"published_at"`
 	CreatedAt     time.Time  `gorm:"autoCreateTime;comment:创建时间" json:"created_at"`
 	UpdatedAt     time.Time  `gorm:"autoUpdateTime;comment:更新时间" json:"updated_at"`
-	Categories    []Category `gorm:"many2many:post_categories;joinForeignKey:PostID;joinReferences:CategoryID" json:"categories,omitempty"`
+
+	// 处理后字段
+	CategoryNames []string `json:"category_names" gorm:"-"`
+	CategoryIDs   []uint64 `json:"category_ids" gorm:"-"`
+	TagNames      []string `json:"tag_names" gorm:"-"`
+	TagIDs        []uint64 `json:"tag_ids" gorm:"-"`
+}
+type PostWithRelations struct {
+	Post
+	CategoryNamesStr string `gorm:"column:category_names_sql"`
+	TagNamesStr      string `gorm:"column:tag_names_sql"`
+	CategoryIDsStr   string `gorm:"column:category_ids_sql"`
+	TagIDsStr        string `gorm:"column:tag_ids_sql"`
 }
 
 func (Post) TableName() string { return "posts" }

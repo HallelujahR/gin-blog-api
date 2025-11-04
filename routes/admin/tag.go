@@ -13,9 +13,10 @@ func RegisterAdminTagRoutes(r *gin.Engine) {
 	{
 		tags := adminGroup.Group("/tags")
 		{
-			tags.POST("", adminCtrl.CreateTag)
-			tags.PUT("/:id", adminCtrl.UpdateTag)
-			tags.DELETE("/:id", adminCtrl.DeleteTag)
+			tags.GET("", adminCtrl.ListAllTags)          // 获取所有标签（用于文章编辑）
+			tags.POST("", adminCtrl.CreateTag)           // 创建标签
+			tags.PUT("/:id", adminCtrl.UpdateTag)        // 更新标签
+			tags.DELETE("/:id", adminCtrl.DeleteTag)      // 删除标签
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package database
 
 import (
+	"gorm.io/gorm/logger"
 	"os"
 	"sync"
 
@@ -16,7 +17,10 @@ func GetDB() *gorm.DB {
 	once.Do(func() {
 		dsn := getDSN()
 		var err error
-		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		//db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
+		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		})
 		if err != nil {
 			panic("数据库连接失败: " + err.Error())
 		}

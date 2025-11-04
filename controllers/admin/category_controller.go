@@ -9,12 +9,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 获取所有分类列表（用于文章编辑时的下拉选择）
+func ListAllCategories(c *gin.Context) {
+	categories, err := service.ListCategories()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"categories": categories})
+}
+
 // 创建分类（管理后台）
 func CreateCategory(c *gin.Context) {
 	var req struct {
-		Name        string `json:"name" binding:"required"`
-		Slug        string `json:"slug" binding:"required"`
-		Description string `json:"description"`
+		Name        string  `json:"name" binding:"required"`
+		Slug        string  `json:"slug"` // 可选，不传则自动生成
+		Description string  `json:"description"`
 		ParentID    *uint64 `json:"parent_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -22,15 +32,22 @@ func CreateCategory(c *gin.Context) {
 		return
 	}
 	
+	// 自动生成slug（如果未提供）
+	slug := req.Slug
+	if slug == "" {
+		// 使用post_service的GenerateSlug函数
+		slug = service.GenerateSlug(req.Name)
+	}
+	
 	category := &models.Category{
 		Name:        req.Name,
-		Slug:        req.Slug,
+		Slug:        slug,
 		Description: req.Description,
 		ParentID:    req.ParentID,
 	}
 	
 	if err := service.CreateCategory(category); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"category": category})

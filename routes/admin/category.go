@@ -13,9 +13,10 @@ func RegisterAdminCategoryRoutes(r *gin.Engine) {
 	{
 		categories := adminGroup.Group("/categories")
 		{
-			categories.POST("", adminCtrl.CreateCategory)
-			categories.PUT("/:id", adminCtrl.UpdateCategory)
-			categories.DELETE("/:id", adminCtrl.DeleteCategory)
+			categories.GET("", adminCtrl.ListAllCategories)   // 获取所有分类（用于文章编辑）
+			categories.POST("", adminCtrl.CreateCategory)     // 创建分类
+			categories.PUT("/:id", adminCtrl.UpdateCategory)  // 更新分类
+			categories.DELETE("/:id", adminCtrl.DeleteCategory) // 删除分类
 		}
 	}
 }

@@ -3,6 +3,9 @@ package dao
 import (
 	"api/database"
 	"api/models"
+	"database/sql"
+	"errors"
+	"time"
 )
 
 // 创建用户
@@ -44,4 +47,44 @@ func ListAllUsers() ([]models.User, error) {
 	var users []models.User
 	err := database.GetDB().Find(&users).Error
 	return users, err
+}
+
+func validateDate(date string) (string, error) {
+	if date == "0000-00-00" || date == "" {
+		return "", errors.New("invalid date value")
+	}
+	return date, nil
+}
+
+func validateRole(role string) (string, error) {
+	validRoles := map[string]bool{
+		"admin": true,
+		"user":  true,
+		"guest": true,
+	}
+	if !validRoles[role] {
+		return "", errors.New("invalid role value")
+	}
+	return role, nil
+}
+
+func InsertUser(db *sql.DB, username, role, createdAt string) error {
+	// Validate 'created_at'
+	validDate, err := validateDate(createdAt)
+	if err != nil || validDate == "" {
+		validDate = time.Now().Format("2006-01-02") // Use current date as default
+	}
+
+	// Validate 'role'
+	validRole, err := validateRole(role)
+	if err != nil {
+		return err
+	}
+
+	query := "INSERT INTO users (username, role, created_at) VALUES (?, ?, ?)"
+	_, err = db.Exec(query, username, validRole, validDate)
+	if err != nil {
+		return err
+	}
+	return nil
 }

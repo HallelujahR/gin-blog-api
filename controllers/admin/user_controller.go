@@ -36,7 +36,7 @@ func UpdateUserStatus(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "不存在"})
 		return
 	}
-	
+
 	var req struct {
 		Status string `json:"status" binding:"required"`
 	}
@@ -44,8 +44,9 @@ func UpdateUserStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	user.Status = req.Status
+
 	if err = service.UpdateUser(user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
 		return
@@ -61,7 +62,7 @@ func UpdateUserRole(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "不存在"})
 		return
 	}
-	
+
 	var req struct {
 		Role string `json:"role" binding:"required"`
 	}
@@ -69,7 +70,7 @@ func UpdateUserRole(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	user.Role = req.Role
 	if err = service.UpdateUser(user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})

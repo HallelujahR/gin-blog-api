@@ -45,6 +45,12 @@ func GetPost(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "不存在"})
 		return
 	}
+
+	// 确保返回的cover_image是完整URL
+	if post.CoverImage != "" {
+		post.CoverImage = service.GetFullFileURL(post.CoverImage)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"post": post})
 }
 
@@ -62,11 +68,19 @@ func ListPosts(c *gin.Context) {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
-	posts, err := service.ListPostsWithParams(req.Page, req.Size, req.Q, req.Sort, req.Category, req.Tag)
+	posts, err := service.ListPostsWithParams(req.Page, req.Size, req.Q, req.Sort, req.Category, req.Tag, "published")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
 	}
+
+	// 确保列表中的cover_image都是完整URL
+	for i := range posts {
+		if posts[i].CoverImage != "" {
+			posts[i].CoverImage = service.GetFullFileURL(posts[i].CoverImage)
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"posts": posts})
 }
 

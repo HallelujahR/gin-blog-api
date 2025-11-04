@@ -4,6 +4,8 @@ import (
 	"api/middleware"
 	"api/routes"
 	adminRoutes "api/routes/admin"
+	"api/service"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,6 +14,15 @@ func InitRouter() *gin.Engine {
 	r := gin.Default()
 	// 跨域中间件：允许全部开发请求，支持Authorization头
 	r.Use(middleware.CORSMiddleware())
+
+	// 初始化上传目录
+	if err := service.InitUploadDirs(); err != nil {
+		// 如果初始化失败，记录错误但不中断启动
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: 上传目录初始化失败: %v\n", err)
+	}
+
+	// 静态文件服务：提供上传文件的公开访问
+	r.Static("/uploads", "./uploads")
 
 	// ========== 前端用户访问API（公开或认证用户访问）==========
 	// 保持原有接口路径不变，确保向前兼容
@@ -30,6 +41,7 @@ func InitRouter() *gin.Engine {
 	adminRoutes.RegisterAdminCategoryRoutes(r)
 	adminRoutes.RegisterAdminTagRoutes(r)
 	adminRoutes.RegisterAdminCommentRoutes(r)
+	adminRoutes.RegisterAdminUploadRoutes(r) // 文件上传接口
 
 	return r
 }

@@ -9,24 +9,41 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 获取所有标签列表（用于文章编辑时的下拉选择）
+func ListAllTags(c *gin.Context) {
+	tags, err := service.ListTags()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tags": tags})
+}
+
 // 创建标签（管理后台）
 func CreateTag(c *gin.Context) {
 	var req struct {
 		Name string `json:"name" binding:"required"`
-		Slug string `json:"slug" binding:"required"`
+		Slug string `json:"slug"` // 可选，不传则自动生成
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	
+	// 自动生成slug（如果未提供）
+	slug := req.Slug
+	if slug == "" {
+		// 使用post_service的GenerateSlug函数
+		slug = service.GenerateSlug(req.Name)
+	}
+	
 	tag := &models.Tag{
 		Name: req.Name,
-		Slug: req.Slug,
+		Slug: slug,
 	}
 	
 	if err := service.CreateTag(tag); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"tag": tag})

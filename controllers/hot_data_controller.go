@@ -11,19 +11,19 @@ import (
 
 func CreateHotData(c *gin.Context) {
 	var req struct {
-		DataType  string `json:"data_type" binding:"required"`
-		DataKey   string `json:"data_key" binding:"required"`
-		DataValue string `json:"data_value" binding:"required"` // 业务层需转Json
-		Period    string `json:"period"`
+		// DataType  string `json:"data_type" binding:"required"`
+		// DataKey   string `json:"data_key" binding:"required"`
+		// DataValue string `json:"data_value" binding:"required"` // 业务层需转Json
+		Period string `json:"period"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	hd := models.HotData{
-		DataType: req.DataType,
-		DataKey:  req.DataKey,
-		Period:   req.Period,
+		// DataType: req.DataType,
+		// DataKey:  req.DataKey,
+		Period: req.Period,
 		// DataValue: 需解析
 	}
 	if err := service.CreateHotData(&hd); err != nil {
