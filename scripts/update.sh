@@ -10,6 +10,17 @@ if [ "$ENV" = "production" ]; then
     COMPOSE_FILE="docker-compose.prod.yml"
 fi
 
+# 检测Docker Compose命令
+DOCKER_COMPOSE_CMD=""
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker compose"
+else
+    echo "❌ Docker Compose未安装"
+    exit 1
+fi
+
 echo "🔄 开始更新博客系统..."
 
 # 拉取最新代码
@@ -20,13 +31,13 @@ fi
 
 # 重新构建镜像
 echo "🔨 重新构建镜像..."
-docker-compose -f $COMPOSE_FILE build
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE build
 
 # 滚动更新（先更新API，再更新前端）
 echo "🔄 滚动更新服务..."
-docker-compose -f $COMPOSE_FILE up -d --no-deps api
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d --no-deps api
 sleep 5
-docker-compose -f $COMPOSE_FILE up -d --no-deps frontend
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d --no-deps frontend
 
 # 清理旧镜像
 echo "🧹 清理旧镜像..."

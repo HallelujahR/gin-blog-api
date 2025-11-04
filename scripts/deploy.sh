@@ -21,10 +21,17 @@ if ! command -v docker &> /dev/null; then
 fi
 
 # 检查Docker Compose是否安装
-if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+DOCKER_COMPOSE_CMD=""
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker compose"
+else
     echo "❌ Docker Compose未安装，请先安装Docker Compose"
     exit 1
 fi
+
+echo "✅ 使用Docker Compose命令: $DOCKER_COMPOSE_CMD"
 
 # 检查.env文件
 if [ ! -f .env ]; then
@@ -42,15 +49,15 @@ fi
 
 # 停止旧容器
 echo "🛑 停止旧容器..."
-docker-compose -f $COMPOSE_FILE down || true
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down || true
 
 # 构建镜像
 echo "🔨 构建Docker镜像..."
-docker-compose -f $COMPOSE_FILE build --no-cache
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE build --no-cache
 
 # 启动服务
 echo "🚀 启动服务..."
-docker-compose -f $COMPOSE_FILE up -d
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d
 
 # 等待服务启动
 echo "⏳ 等待服务启动..."
@@ -58,11 +65,11 @@ sleep 10
 
 # 检查服务状态
 echo "📊 检查服务状态..."
-docker-compose -f $COMPOSE_FILE ps
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE ps
 
 # 显示日志
 echo "📋 最近日志:"
-docker-compose -f $COMPOSE_FILE logs --tail=50
+$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE logs --tail=50
 
 echo ""
 echo "✅ 部署完成！"
@@ -71,7 +78,7 @@ echo "📝 服务地址:"
 echo "   - 前端: http://your-domain.com"
 echo "   - API: http://your-domain.com:8080"
 echo ""
-echo "🔍 查看日志: docker-compose -f $COMPOSE_FILE logs -f"
-echo "🛑 停止服务: docker-compose -f $COMPOSE_FILE down"
-echo "🔄 重启服务: docker-compose -f $COMPOSE_FILE restart"
+echo "🔍 查看日志: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE logs -f"
+echo "🛑 停止服务: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down"
+echo "🔄 重启服务: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE restart"
 
