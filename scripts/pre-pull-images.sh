@@ -29,7 +29,7 @@ fi
 
 # 定义需要拉取的镜像
 IMAGES=(
-    "golang:1.23-alpine"
+    "golang:1.22-alpine"
     "mysql:8.0"
     "nginx:alpine"
     "node:18-alpine"
