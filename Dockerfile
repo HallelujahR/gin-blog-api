@@ -1,6 +1,7 @@
 # 后端API Dockerfile
 # 兼容旧版Docker（单阶段构建）
-FROM golang:latest
+# 使用golang:1.22确保与go.mod版本一致
+FROM golang:1.22
 
 # 设置工作目录
 WORKDIR /app
