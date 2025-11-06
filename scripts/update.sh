@@ -10,16 +10,18 @@ if [ "$ENV" = "production" ]; then
     COMPOSE_FILE="docker-compose.prod.yml"
 fi
 
-# 检测Docker Compose命令
+# 检测Docker Compose命令（优先使用docker compose插件，兼容Docker 26.1+）
 DOCKER_COMPOSE_CMD=""
-if command -v docker-compose &> /dev/null; then
-    DOCKER_COMPOSE_CMD="docker-compose"
-elif docker compose version &> /dev/null; then
+if docker compose version &> /dev/null; then
     DOCKER_COMPOSE_CMD="docker compose"
+elif command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
 else
     echo "❌ Docker Compose未安装"
     exit 1
 fi
+
+echo "✅ 使用Docker Compose命令: $DOCKER_COMPOSE_CMD"
 
 echo "🔄 开始更新博客系统..."
 

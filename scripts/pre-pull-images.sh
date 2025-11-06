@@ -35,19 +35,31 @@ IMAGES=(
     "node:18-alpine"
 )
 
-# 拉取镜像
+# 拉取镜像（带超时控制，兼容Docker 26.1+）
 SUCCESS=0
 FAILED=0
 
 for image in "${IMAGES[@]}"; do
     echo ""
     echo "📥 拉取镜像: $image"
-    if docker pull "$image"; then
-        echo "✅ $image 拉取成功"
-        ((SUCCESS++))
+    # 使用timeout命令控制超时（如果可用），默认300秒
+    if command -v timeout &> /dev/null; then
+        if timeout 300 docker pull "$image" 2>/dev/null || docker pull "$image"; then
+            echo "✅ $image 拉取成功"
+            ((SUCCESS++))
+        else
+            echo "❌ $image 拉取失败"
+            ((FAILED++))
+        fi
     else
-        echo "❌ $image 拉取失败"
-        ((FAILED++))
+        # 如果没有timeout命令，直接拉取
+        if docker pull "$image"; then
+            echo "✅ $image 拉取成功"
+            ((SUCCESS++))
+        else
+            echo "❌ $image 拉取失败"
+            ((FAILED++))
+        fi
     fi
 done
 

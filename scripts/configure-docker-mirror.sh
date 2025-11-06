@@ -121,11 +121,11 @@ fi
 echo "🔄 重启Docker服务..."
 sudo systemctl daemon-reload
 
-# 检查Docker服务状态
+# 检查Docker服务状态（兼容Docker 26.1+）
 if ! sudo systemctl restart docker; then
     echo "❌ Docker服务启动失败！"
     echo "📋 查看错误信息："
-    sudo systemctl status docker.service
+    sudo systemctl status docker.service --no-pager || true
     echo ""
     echo "🔧 尝试修复："
     echo "1. 检查配置文件：sudo cat /etc/docker/daemon.json"
@@ -133,6 +133,16 @@ if ! sudo systemctl restart docker; then
     echo "3. 如果配置有问题，删除配置文件：sudo rm /etc/docker/daemon.json"
     echo "4. 然后重新运行此脚本"
     exit 1
+fi
+
+# 等待Docker服务完全启动（Docker 26.1+可能需要更多时间）
+echo "⏳ 等待Docker服务启动..."
+sleep 3
+
+# 验证Docker是否正常运行
+if ! docker info > /dev/null 2>&1; then
+    echo "⚠️  Docker服务已启动，但可能尚未完全就绪，请稍候..."
+    sleep 2
 fi
 
 # 验证配置

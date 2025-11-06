@@ -429,10 +429,128 @@ curl http://localhost:8080/api/posts?page=1&size=1
 3. **CDN 加速**: 静态资源使用 CDN 加速
 4. **负载均衡**: 高并发场景考虑使用负载均衡
 
+## 快速开始（CentOS）
+
+### 一键部署步骤
+
+```bash
+# 1. 安装Docker
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo systemctl start docker && sudo systemctl enable docker
+
+# 2. 克隆代码
+cd /opt && sudo mkdir -p blog && sudo chown $USER:$USER blog
+cd blog
+git clone https://github.com/HallelujahR/gin-blog-api.git api
+cd api
+
+# 3. 配置环境
+cp env.template .env
+vi .env  # 编辑数据库和API地址
+
+# 4. 配置镜像加速器（推荐）
+chmod +x scripts/*.sh
+sudo ./scripts/configure-docker-mirror.sh
+
+# 5. 部署
+./scripts/deploy.sh production
+```
+
+## 部署检查清单
+
+### 部署前准备
+- [ ] 服务器已安装Docker和Docker Compose
+- [ ] 服务器已开放必要端口（80, 443, 8080, 22）
+- [ ] 服务器有足够的资源（CPU、内存、磁盘）
+- [ ] 代码已推送到GitHub仓库
+- [ ] 已配置数据库连接信息
+- [ ] 已配置API基础URL
+
+### 部署后验证
+- [ ] Docker和Docker Compose已正确安装
+- [ ] 所有容器都在运行（3个容器）
+- [ ] API接口可以正常访问
+- [ ] 前端页面可以正常访问
+- [ ] 数据库连接正常
+- [ ] 文件上传功能正常
+- [ ] 日志无错误信息
+
+## 常见问题排查
+
+### Docker服务启动失败
+
+**错误信息：**
+```
+Job for docker.service failed because the control process exited with error code.
+```
+
+**解决方案：**
+```bash
+# 使用修复脚本
+sudo ./scripts/fix-docker-service.sh
+
+# 或手动修复：删除配置文件
+sudo rm /etc/docker/daemon.json
+sudo systemctl restart docker
+```
+
+### Docker镜像拉取超时
+
+**错误信息：**
+```
+Get "https://registry-1.docker.io/v2/": net/http: request canceled
+```
+
+**解决方案：**
+```bash
+# 配置镜像加速器
+sudo ./scripts/configure-docker-mirror.sh
+
+# 或预先拉取镜像
+./scripts/pre-pull-images.sh
+```
+
+### 端口被占用
+
+```bash
+# 检查端口占用
+sudo ss -tulpn | grep -E '8080|80|3306'
+
+# 停止占用端口的服务或修改docker-compose.yml中的端口映射
+```
+
+### 数据库连接失败
+
+```bash
+# 检查MySQL容器是否运行
+docker ps | grep mysql
+
+# 检查环境变量
+cat .env | grep DB_
+
+# 测试数据库连接
+docker exec -it blog-mysql mysql -u blog_user -p
+```
+
+### 容器无法启动
+
+```bash
+# 查看详细错误日志
+docker-compose -f docker-compose.prod.yml logs
+
+# 检查容器状态
+docker ps -a
+
+# 查看特定容器日志
+docker logs blog-api
+```
+
 ## 联系支持
 
 如遇到问题，请查看：
 
-- [README.md](./README.md)
-- [API_DOCUMENTATION.md](./API_DOCUMENTATION.md)
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [README.md](./README.md) - 项目说明
+- [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) - API接口文档
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - 项目架构说明

@@ -20,18 +20,28 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
+# 检查Docker版本
+DOCKER_VERSION=$(docker --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+echo "📋 Docker版本: $DOCKER_VERSION"
+
 # 检查Docker Compose是否安装
+# Docker 26.1+ 使用 docker compose (插件形式)
 DOCKER_COMPOSE_CMD=""
-if command -v docker-compose &> /dev/null; then
-    DOCKER_COMPOSE_CMD="docker-compose"
-elif docker compose version &> /dev/null; then
+if docker compose version &> /dev/null; then
     DOCKER_COMPOSE_CMD="docker compose"
+    echo "✅ 使用Docker Compose插件: docker compose"
+elif command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+    echo "✅ 使用Docker Compose独立命令: docker-compose"
 else
-    echo "❌ Docker Compose未安装，请先安装Docker Compose"
+    echo "❌ Docker Compose未安装"
+    echo "💡 Docker 26.1+ 通常包含docker compose插件，请检查安装"
     exit 1
 fi
 
-echo "✅ 使用Docker Compose命令: $DOCKER_COMPOSE_CMD"
+# 验证Docker Compose版本
+COMPOSE_VERSION=$($DOCKER_COMPOSE_CMD version --short 2>/dev/null || echo "unknown")
+echo "📋 Docker Compose版本: $COMPOSE_VERSION"
 
 # 检查.env文件
 if [ ! -f .env ]; then
@@ -53,9 +63,17 @@ echo "🔍 检查Docker镜像加速器配置..."
 if ! docker info 2>/dev/null | grep -q "Registry Mirrors"; then
     echo "⚠️  未检测到Docker镜像加速器配置"
     echo "💡 建议配置镜像加速器以加快镜像拉取速度（特别是中国大陆服务器）"
-    read -p "是否现在配置镜像加速器？(y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if [ -t 0 ]; then
+        # 交互式终端
+        read -p "是否现在配置镜像加速器？(y/n) " -n 1 -r
+        echo
+        CONFIGURE_MIRROR=$REPLY
+    else
+        # 非交互式（如CI/CD），默认不配置
+        CONFIGURE_MIRROR="n"
+    fi
+    
+    if [[ $CONFIGURE_MIRROR =~ ^[Yy]$ ]]; then
         if [ -f scripts/configure-docker-mirror.sh ]; then
             echo "🔧 运行镜像加速器配置脚本..."
             sudo ./scripts/configure-docker-mirror.sh
@@ -92,10 +110,24 @@ $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down || true
 # 预先拉取基础镜像（避免构建时超时）
 echo "📥 预先拉取基础镜像..."
 echo "💡 如果镜像拉取超时，请配置镜像加速器：sudo ./scripts/configure-docker-mirror.sh"
-docker pull golang:1.23-alpine || echo "⚠️  golang镜像拉取失败，将在构建时重试"
-docker pull mysql:8.0 || echo "⚠️  mysql镜像拉取失败，将在构建时重试"
-docker pull nginx:alpine || echo "⚠️  nginx镜像拉取失败，将在构建时重试"
-docker pull node:18-alpine || echo "⚠️  node镜像拉取失败，将在构建时重试"
+
+# 定义需要拉取的镜像
+IMAGES=(
+    "golang:1.23-alpine"
+    "mysql:8.0"
+    "nginx:alpine"
+    "node:18-alpine"
+)
+
+# 拉取镜像（带超时控制）
+for image in "${IMAGES[@]}"; do
+    echo "📥 拉取镜像: $image"
+    if timeout 300 docker pull "$image" 2>/dev/null || docker pull "$image"; then
+        echo "✅ $image 拉取成功"
+    else
+        echo "⚠️  $image 拉取失败，将在构建时重试"
+    fi
+done
 
 # 构建镜像
 echo "🔨 构建Docker镜像..."
