@@ -8,9 +8,17 @@ WORKDIR /app
 # 配置阿里云apt镜像源（加速包下载）
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || \
-    echo "deb http://mirrors.aliyun.com/debian/ bookworm main" > /etc/apt/sources.list && \
-    echo "deb http://mirrors.aliyun.com/debian/ bookworm-updates main" >> /etc/apt/sources.list && \
-    echo "deb http://mirrors.aliyun.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list
+    (echo "deb http://mirrors.aliyun.com/debian/ bookworm main" > /etc/apt/sources.list && \
+     echo "deb http://mirrors.aliyun.com/debian/ bookworm-updates main" >> /etc/apt/sources.list && \
+     echo "deb http://mirrors.aliyun.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list)
+
+# 获取并配置GPG公钥（确保apt源验证通过）
+RUN apt-get update --allow-insecure-repositories 2>/dev/null || true && \
+    apt-get install -y --no-install-recommends ca-certificates gnupg2 && \
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 54404762BBB6E853 || \
+    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 54404762BBB6E853 || \
+    echo "GPG密钥获取失败，继续使用现有密钥" && \
+    apt-get clean
 
 # 安装必要的依赖（Debian基础镜像使用apt）
 RUN apt-get update && \
