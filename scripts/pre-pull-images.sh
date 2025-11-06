@@ -32,7 +32,7 @@ IMAGES=(
     "golang:latest"
     "mysql:8.0"
     "nginx:alpine"
-    "node:18-alpine"
+    "node:latest"
 )
 
 # 拉取镜像（带超时控制，兼容Docker 26.1+）
