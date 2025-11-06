@@ -13,6 +13,9 @@ if [ "$ENV" = "production" ]; then
 fi
 
 echo "🚀 开始部署博客系统 (环境: $ENV)..."
+echo "📋 服务器信息:"
+echo "   - 操作系统: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2 || uname -s)"
+echo "   - 内核版本: $(uname -r)"
 
 # 检查Docker是否安装
 if ! command -v docker &> /dev/null; then

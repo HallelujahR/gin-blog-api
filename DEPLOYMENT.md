@@ -429,33 +429,55 @@ curl http://localhost:8080/api/posts?page=1&size=1
 3. **CDN 加速**: 静态资源使用 CDN 加速
 4. **负载均衡**: 高并发场景考虑使用负载均衡
 
-## 快速开始（CentOS）
+## 快速开始（CentOS 服务器）
 
-### 一键部署步骤
+### CentOS 服务器一键部署步骤
 
 ```bash
-# 1. 安装Docker
+# 1. 安装Docker（CentOS 7/8/9）
+# CentOS 7
 sudo yum install -y yum-utils
 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# CentOS 8/9 或 Rocky Linux
+sudo dnf install -y yum-utils
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# 启动Docker服务
 sudo systemctl start docker && sudo systemctl enable docker
 
-# 2. 克隆代码
+# 验证安装
+docker --version
+docker compose version
+
+# 2. 配置防火墙（开放必要端口）
+sudo firewall-cmd --permanent --add-port=80/tcp
+sudo firewall-cmd --permanent --add-port=443/tcp
+sudo firewall-cmd --permanent --add-port=8080/tcp
+sudo firewall-cmd --reload
+
+# 3. 克隆代码
 cd /opt && sudo mkdir -p blog && sudo chown $USER:$USER blog
 cd blog
 git clone https://github.com/HallelujahR/gin-blog-api.git api
 cd api
 
-# 3. 配置环境
+# 4. 配置环境变量
 cp env.template .env
-vi .env  # 编辑数据库和API地址
+vi .env  # 编辑数据库和API地址（必须修改密码）
 
-# 4. 配置镜像加速器（推荐）
+# 5. 配置镜像加速器（强烈推荐，解决拉取超时）
 chmod +x scripts/*.sh
 sudo ./scripts/configure-docker-mirror.sh
 
-# 5. 部署
+# 6. 部署
 ./scripts/deploy.sh production
+
+# 7. 验证部署
+docker compose -f docker-compose.prod.yml ps
+curl http://localhost:8080/api/posts?page=1&size=1
 ```
 
 ## 部署检查清单
