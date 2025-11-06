@@ -5,6 +5,13 @@ FROM golang:latest
 # 设置工作目录
 WORKDIR /app
 
+# 配置阿里云apt镜像源（加速包下载）
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || \
+    echo "deb http://mirrors.aliyun.com/debian/ bookworm main" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian/ bookworm-updates main" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian-security/ bookworm-security main" >> /etc/apt/sources.list
+
 # 安装必要的依赖（Debian基础镜像使用apt）
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git ca-certificates tzdata && \
