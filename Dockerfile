@@ -5,8 +5,10 @@ FROM golang:latest
 # 设置工作目录
 WORKDIR /app
 
-# 安装必要的依赖
-RUN apk add --no-cache git ca-certificates tzdata
+# 安装必要的依赖（Debian基础镜像使用apt）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git ca-certificates tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
 # 设置时区
 ENV TZ=Asia/Shanghai
