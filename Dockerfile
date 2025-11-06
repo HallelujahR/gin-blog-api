@@ -1,6 +1,6 @@
 # 后端API Dockerfile
 # 兼容旧版Docker（单阶段构建）
-FROM golang:1.22-alpine
+FROM golang:latest
 
 # 设置工作目录
 WORKDIR /app
