@@ -1,6 +1,6 @@
 # 后端API Dockerfile
-# 使用golang:1.22进行构建
-FROM golang:1.22
+# 使用golang:1.25-alpine进行构建（与打包脚本中的镜像版本一致）
+FROM golang:1.25-alpine
 
 # 设置工作目录
 WORKDIR /app

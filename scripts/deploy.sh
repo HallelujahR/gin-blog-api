@@ -208,9 +208,9 @@ fi
 echo ""
 echo "🔍 检查必需的Docker镜像..."
 REQUIRED_IMAGES=(
-    "golang:1.22"
-    "mysql:8.0"
-    "nginx:alpine"
+    "golang:1.25-alpine"
+    "mysql:8.0.44"
+    "nginx:latest"
     "node:latest"
 )
 

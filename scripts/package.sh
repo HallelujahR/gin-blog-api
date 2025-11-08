@@ -47,11 +47,12 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-# 定义需要打包的镜像
+# 定义需要打包的镜像（使用本地已有的镜像版本）
+# 如果本地没有这些镜像，脚本会尝试拉取
 IMAGES=(
-    "golang:1.22"
-    "mysql:8.0"
-    "nginx:alpine"
+    "golang:1.25-alpine"
+    "mysql:8.0.44"
+    "nginx:latest"
     "node:latest"
 )
 
@@ -65,10 +66,17 @@ for image in "${IMAGES[@]}"; do
     if docker images "$image" --format "{{.Repository}}:{{.Tag}}" | grep -q "$image"; then
         echo "✅ 镜像已存在: $image"
     else
-        echo "📥 拉取镜像: $image"
+        echo "📥 镜像不存在，尝试拉取: $image"
         docker pull "$image" || {
             echo "⚠️  镜像拉取失败: $image"
-            continue
+            echo "💡 请确保本地有该镜像或网络连接正常"
+            read -p "是否跳过此镜像？(y/n) " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                continue
+            else
+                exit 1
+            fi
         }
     fi
     
@@ -192,10 +200,15 @@ cat > "$PACKAGE_DIR/README.md" <<'README_EOF'
 
 ## 镜像列表
 
-- golang:1.22
-- mysql:8.0
-- nginx:alpine
+- golang:1.25-alpine
+- mysql:8.0.44
+- nginx:latest
 - node:latest
+
+## 说明
+
+这些镜像版本是本地已有的版本。如果本地没有这些镜像，脚本会尝试拉取。
+如果拉取失败，可以手动拉取镜像后再运行打包脚本。
 README_EOF
 
 # ========== 打包成tar文件 ==========
