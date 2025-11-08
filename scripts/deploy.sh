@@ -138,25 +138,68 @@ if [ ! -d "$IMAGES_DIR" ]; then
     rm -rf "$EXTRACT_DIR"
     exit 1
 fi
+echo "✅ 镜像目录存在: $IMAGES_DIR"
 
 # 加载所有镜像
 echo "📥 加载Docker镜像..."
 LOADED=0
 FAILED=0
 
+echo "开始加载镜像..."
+# 临时禁用错误退出，允许单个镜像加载失败
+set +e
+echo "=== 调试信息开始 ==="
+echo "当前目录: $(pwd)"
+echo "镜像目录: $IMAGES_DIR"
+echo "目录是否存在: $(if [ -d "$IMAGES_DIR" ]; then echo "是"; else echo "否"; fi)"
+
+# 检查目录内容
+echo "目录内容:"
+ls -la "$IMAGES_DIR" 2>/dev/null || echo "目录不存在或无法访问"
+
+# 检查 .tar 文件
+echo ".tar 文件列表:"
+ls "$IMAGES_DIR"/*.tar 2>/dev/null || echo "没有找到 .tar 文件"
+
+# 统计文件数量
+file_count=$(ls "$IMAGES_DIR"/*.tar 2>/dev/null | wc -l)
+echo "找到 $file_count 个 .tar 文件"
+
+echo "=== 开始循环处理 ==="
+
+LOADED=0
+FAILED=0
+
 for image_tar in "$IMAGES_DIR"/*.tar; do
-    if [ -f "$image_tar" ]; then
-        IMAGE_NAME=$(basename "$image_tar" .tar)
-        echo "📥 加载镜像: $IMAGE_NAME"
-        if docker load -i "$image_tar" 2>&1; then
-            echo "✅ $IMAGE_NAME 加载成功"
-            ((LOADED++))
-        else
-            echo "⚠️  $IMAGE_NAME 加载失败"
-            ((FAILED++))
-        fi
+    echo "🔍 当前循环变量: $image_tar"
+    
+    # 检查文件是否存在且是普通文件
+    if [ ! -e "$image_tar" ]; then
+        echo "❌ 文件不存在: $image_tar"
+        continue
     fi
+    
+    if [ ! -f "$image_tar" ]; then
+        echo "❌ 不是普通文件: $image_tar"
+        continue
+    fi
+    
+    IMAGE_NAME=$(basename "$image_tar" .tar)
+    echo "📥 加载镜像: $IMAGE_NAME (文件: $image_tar)"
+    
+    if docker load -i "$image_tar" 2>&1; then
+        echo "✅ $IMAGE_NAME 加载成功"
+        ((LOADED++))
+    else
+        echo "⚠️  $IMAGE_NAME 加载失败"
+        ((FAILED++))
+    fi
+    
+    echo "--- 循环结束 ---"
 done
+
+echo "=== 循环完成 ==="
+echo "📊 统计: $LOADED 成功, $FAILED 失败"
 
 # 清理临时目录
 rm -rf "$EXTRACT_DIR"
@@ -167,7 +210,8 @@ fi
 if [ $FAILED -gt 0 ]; then
     echo "⚠️  $FAILED 个镜像加载失败"
 fi
-
+# 重新启用错误退出
+set -e
 # ========== 停止旧容器 ==========
 echo ""
 echo "🛑 停止旧容器..."
