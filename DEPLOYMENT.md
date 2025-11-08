@@ -143,7 +143,7 @@ systemctl start docker
 
 ```bash
 # 手动加载镜像
-docker load -i docker-package/images/golang_1.22.tar
+docker load -i docker-package/images/golang_1.25-alpine.tar
 ```
 
 ### 查看 Docker 日志
