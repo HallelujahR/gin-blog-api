@@ -219,7 +219,21 @@ CURRENT_DIR=$(pwd)
 
 # 在临时目录中打包
 cd "$TEMP_DIR"
-tar -czf "$PACKAGE_NAME" docker-package
+
+# 禁用macOS扩展属性（避免在Linux上解压时出现警告）
+# COPYFILE_DISABLE=1 会禁用资源分叉和扩展属性
+export COPYFILE_DISABLE=1
+
+# 使用GNU tar格式打包（兼容性更好）
+# 如果在macOS上，使用gnutar或tar，并禁用扩展属性
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS系统：禁用扩展属性
+    COPYFILE_DISABLE=1 tar --disable-copyfile -czf "$PACKAGE_NAME" docker-package 2>/dev/null || \
+    COPYFILE_DISABLE=1 tar -czf "$PACKAGE_NAME" docker-package
+else
+    # Linux系统：直接打包
+    tar -czf "$PACKAGE_NAME" docker-package
+fi
 
 # 移动到项目根目录
 if [ -f "$CURRENT_DIR/$PACKAGE_NAME" ]; then
