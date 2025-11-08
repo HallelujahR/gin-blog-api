@@ -186,10 +186,17 @@ echo ""
 echo "🔧 配置Docker镜像加速器..."
 mkdir -p /etc/docker
 
-# 检查是否已有配置
+# 检查是否已有配置且包含镜像加速器
+NEED_RESTART=false
 if [ -f /etc/docker/daemon.json ]; then
     # 备份现有配置
     cp /etc/docker/daemon.json /etc/docker/daemon.json.bak.$(date +%Y%m%d_%H%M%S)
+    # 检查是否已配置镜像加速器
+    if ! grep -q "registry-mirrors" /etc/docker/daemon.json; then
+        NEED_RESTART=true
+    fi
+else
+    NEED_RESTART=true
 fi
 
 # 创建或更新daemon.json
@@ -210,11 +217,41 @@ cat > /etc/docker/daemon.json <<'EOF'
 }
 EOF
 
-# 重启Docker服务
-systemctl daemon-reload
-systemctl restart docker
-sleep 3
-echo "✅ Docker镜像加速器配置完成"
+# 重启Docker服务（如果需要）
+if [ "$NEED_RESTART" = "true" ]; then
+    echo "🔄 重启Docker服务使镜像加速器生效..."
+    systemctl daemon-reload
+    systemctl restart docker
+    
+    # 等待Docker服务完全启动
+    echo "⏳ 等待Docker服务启动..."
+    sleep 5
+    
+    # 验证Docker是否正常运行
+    RETRY=0
+    while [ $RETRY -lt 10 ]; do
+        if docker info > /dev/null 2>&1; then
+            break
+        fi
+        echo "⏳ 等待Docker服务就绪... ($((RETRY+1))/10)"
+        sleep 2
+        RETRY=$((RETRY+1))
+    done
+    
+    if ! docker info > /dev/null 2>&1; then
+        echo "❌ Docker服务启动失败，请检查日志: journalctl -u docker.service"
+        exit 1
+    fi
+fi
+
+# 验证镜像加速器配置
+echo "🔍 验证Docker镜像加速器配置..."
+if docker info 2>/dev/null | grep -q "Registry Mirrors"; then
+    echo "✅ Docker镜像加速器配置成功"
+    docker info 2>/dev/null | grep -A 10 "Registry Mirrors" | head -5
+else
+    echo "⚠️  无法验证镜像加速器配置，但将继续执行"
+fi
 
 # ========== 检测Docker Compose ==========
 echo ""
@@ -278,14 +315,66 @@ IMAGES=(
     "node:latest"
 )
 
+# 拉取镜像函数（带重试机制）
+pull_image_with_retry() {
+    local image=$1
+    local max_retries=3
+    local retry=0
+    
+    while [ $retry -lt $max_retries ]; do
+        echo "📥 拉取镜像: $image (尝试 $((retry+1))/$max_retries)..."
+        
+        # 使用timeout命令（如果可用），超时时间设置为600秒
+        if command -v timeout &> /dev/null; then
+            if timeout 600 docker pull "$image" 2>&1; then
+                echo "✅ $image 拉取成功"
+                return 0
+            else
+                echo "⚠️  $image 拉取失败（尝试 $((retry+1))/$max_retries）"
+            fi
+        else
+            if docker pull "$image" 2>&1; then
+                echo "✅ $image 拉取成功"
+                return 0
+            else
+                echo "⚠️  $image 拉取失败（尝试 $((retry+1))/$max_retries）"
+            fi
+        fi
+        
+        retry=$((retry+1))
+        if [ $retry -lt $max_retries ]; then
+            echo "⏳ 等待5秒后重试..."
+            sleep 5
+        fi
+    done
+    
+    echo "❌ $image 拉取失败，将在构建时重试"
+    return 1
+}
+
+# 拉取所有镜像
+FAILED_IMAGES=()
 for image in "${IMAGES[@]}"; do
-    echo "📥 拉取镜像: $image"
-    if timeout 300 docker pull "$image" 2>/dev/null || docker pull "$image"; then
-        echo "✅ $image 拉取成功"
-    else
-        echo "⚠️  $image 拉取失败，将在构建时重试"
+    if ! pull_image_with_retry "$image"; then
+        FAILED_IMAGES+=("$image")
     fi
+    echo ""
 done
+
+# 显示拉取结果
+if [ ${#FAILED_IMAGES[@]} -eq 0 ]; then
+    echo "✅ 所有镜像拉取成功！"
+else
+    echo "⚠️  以下镜像拉取失败，将在构建时重试："
+    for img in "${FAILED_IMAGES[@]}"; do
+        echo "   - $img"
+    done
+    echo ""
+    echo "💡 如果构建时仍然失败，请检查："
+    echo "   1. 网络连接是否正常"
+    echo "   2. Docker镜像加速器配置是否正确：docker info | grep -A 10 'Registry Mirrors'"
+    echo "   3. 防火墙是否阻止了Docker镜像拉取"
+fi
 
 # ========== 停止旧容器 ==========
 echo ""
