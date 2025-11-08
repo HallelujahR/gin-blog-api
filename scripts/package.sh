@@ -214,41 +214,21 @@ README_EOF
 # ========== 打包成tar文件 ==========
 echo ""
 echo "📦 打包成tar文件..."
-PACKAGE_NAME="docker-package-$(date +%Y%m%d-%H%M%S).tar.gz"
+PACKAGE_NAME="docker-package.tar.gz"
 CURRENT_DIR=$(pwd)
 
 # 在临时目录中打包
 cd "$TEMP_DIR"
 tar -czf "$PACKAGE_NAME" docker-package
 
-# 获取源文件和目标文件的绝对路径
-SOURCE_FILE="$TEMP_DIR/$PACKAGE_NAME"
-TARGET_FILE="$CURRENT_DIR/$PACKAGE_NAME"
-
-# 检查源文件是否存在
-if [ ! -f "$SOURCE_FILE" ]; then
-    echo "❌ 打包文件不存在: $SOURCE_FILE"
-    exit 1
+# 移动到项目根目录
+if [ -f "$CURRENT_DIR/$PACKAGE_NAME" ]; then
+    echo "⚠️  目标文件已存在，删除旧文件..."
+    rm -f "$CURRENT_DIR/$PACKAGE_NAME"
 fi
 
-# 移动到当前目录（检查是否在同一位置）
-# 使用cd + pwd获取真实路径，避免realpath命令不存在的问题
-SOURCE_REAL=$(cd "$(dirname "$SOURCE_FILE")" && pwd)/$(basename "$SOURCE_FILE")
-TARGET_REAL=$(cd "$(dirname "$TARGET_FILE")" && pwd)/$(basename "$TARGET_FILE")
-
-if [ "$SOURCE_REAL" = "$TARGET_REAL" ]; then
-    echo "⚠️  源文件和目标文件在同一位置，跳过移动"
-    PACKAGE_PATH="$SOURCE_FILE"
-else
-    # 如果目标文件已存在，先删除
-    if [ -f "$TARGET_FILE" ]; then
-        echo "⚠️  目标文件已存在，删除旧文件..."
-        rm -f "$TARGET_FILE"
-    fi
-    # 移动文件
-    mv "$SOURCE_FILE" "$TARGET_FILE"
-    PACKAGE_PATH="$TARGET_FILE"
-fi
+mv "$TEMP_DIR/$PACKAGE_NAME" "$CURRENT_DIR/$PACKAGE_NAME"
+PACKAGE_PATH="$CURRENT_DIR/$PACKAGE_NAME"
 
 # 返回原目录
 cd "$CURRENT_DIR"
@@ -263,7 +243,6 @@ rm -rf "$TEMP_DIR"
 
 echo ""
 echo "📝 下一步："
-echo "   1. 将 $PACKAGE_NAME 上传到服务器"
-echo "   2. 在服务器上解压: tar -xzf $PACKAGE_NAME"
-echo "   3. 运行安装脚本: cd docker-package && sudo ./install.sh"
+echo "   1. 将 $PACKAGE_NAME 上传到服务器项目根目录"
+echo "   2. 在服务器上运行部署脚本: sudo ./scripts/deploy.sh production $PACKAGE_NAME"
 
