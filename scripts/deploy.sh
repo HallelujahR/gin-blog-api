@@ -87,6 +87,25 @@ EOF
     echo "✅ yum阿里云镜像源配置完成"
 fi
 
+# ========== 修复Docker仓库配置（如果存在问题）==========
+if [ "$OS_TYPE" = "centos" ] && [ -f /etc/yum.repos.d/docker-ce.repo ]; then
+    echo ""
+    echo "🔍 检查Docker仓库配置..."
+    # 检查是否包含官方源URL
+    if grep -q "download.docker.com" /etc/yum.repos.d/docker-ce.repo; then
+        echo "⚠️  检测到Docker仓库使用官方源，正在修复为阿里云镜像..."
+        # 备份原配置
+        cp /etc/yum.repos.d/docker-ce.repo /etc/yum.repos.d/docker-ce.repo.bak.$(date +%Y%m%d_%H%M%S)
+        # 替换为阿里云镜像
+        sed -i 's|https://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
+        sed -i 's|http://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
+        echo "✅ Docker仓库配置已修复"
+        # 清理yum缓存
+        yum clean all
+        yum makecache fast
+    fi
+fi
+
 # ========== 安装Docker ==========
 echo ""
 echo "🔧 检查Docker安装状态..."
@@ -101,10 +120,37 @@ if ! command -v docker &> /dev/null; then
         # 安装依赖
         yum install -y yum-utils device-mapper-persistent-data lvm2
         
-        # 添加Docker官方yum源（使用阿里云镜像）
-        yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+        # 删除可能存在的旧Docker仓库配置（使用官方源）
+        if [ -f /etc/yum.repos.d/docker-ce.repo ]; then
+            if grep -q "download.docker.com" /etc/yum.repos.d/docker-ce.repo; then
+                echo "🗑️  删除使用官方源的旧Docker仓库配置..."
+                rm -f /etc/yum.repos.d/docker-ce.repo
+            fi
+        fi
+        
+        # 如果Docker仓库配置不存在，创建阿里云镜像配置
+        if [ ! -f /etc/yum.repos.d/docker-ce.repo ]; then
+            echo "📝 创建Docker阿里云仓库配置..."
+            cat > /etc/yum.repos.d/docker-ce.repo <<'EOF'
+[docker-ce-stable]
+name=Docker CE Stable - $basearch
+baseurl=https://mirrors.aliyun.com/docker-ce/linux/centos/$releasever/$basearch/stable
+enabled=1
+gpgcheck=1
+gpgkey=https://mirrors.aliyun.com/docker-ce/linux/centos/gpg
+EOF
+        else
+            # 确保使用阿里云镜像
+            sed -i 's|https://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
+            sed -i 's|http://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
+        fi
+        
+        # 清理yum缓存
+        yum clean all
+        yum makecache fast
         
         # 安装Docker
+        echo "📦 正在安装Docker（使用阿里云镜像源）..."
         yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
         
     elif [ "$OS_TYPE" = "debian" ]; then
@@ -115,10 +161,10 @@ if ! command -v docker &> /dev/null; then
         apt-get update
         apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
         
-        # 添加Docker官方GPG密钥
+        # 添加Docker阿里云GPG密钥
         curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
         
-        # 添加Docker仓库
+        # 添加Docker阿里云仓库
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
         
         # 安装Docker
