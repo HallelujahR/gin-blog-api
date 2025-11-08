@@ -221,15 +221,33 @@ CURRENT_DIR=$(pwd)
 cd "$TEMP_DIR"
 tar -czf "$PACKAGE_NAME" docker-package
 
-# 移动到当前目录（如果不在同一目录）
-if [ "$(realpath "$TEMP_DIR/$PACKAGE_NAME")" != "$(realpath "$CURRENT_DIR/$PACKAGE_NAME")" ]; then
-    mv "$TEMP_DIR/$PACKAGE_NAME" "$CURRENT_DIR/$PACKAGE_NAME"
-    PACKAGE_PATH="$CURRENT_DIR/$PACKAGE_NAME"
+# 获取源文件和目标文件的绝对路径
+SOURCE_FILE="$TEMP_DIR/$PACKAGE_NAME"
+TARGET_FILE="$CURRENT_DIR/$PACKAGE_NAME"
+
+# 检查源文件是否存在
+if [ ! -f "$SOURCE_FILE" ]; then
+    echo "❌ 打包文件不存在: $SOURCE_FILE"
+    exit 1
+fi
+
+# 移动到当前目录（检查是否在同一位置）
+# 使用cd + pwd获取真实路径，避免realpath命令不存在的问题
+SOURCE_REAL=$(cd "$(dirname "$SOURCE_FILE")" && pwd)/$(basename "$SOURCE_FILE")
+TARGET_REAL=$(cd "$(dirname "$TARGET_FILE")" && pwd)/$(basename "$TARGET_FILE")
+
+if [ "$SOURCE_REAL" = "$TARGET_REAL" ]; then
+    echo "⚠️  源文件和目标文件在同一位置，跳过移动"
+    PACKAGE_PATH="$SOURCE_FILE"
 else
-    PACKAGE_PATH="$TEMP_DIR/$PACKAGE_NAME"
-    # 如果已经在当前目录，复制到当前目录
-    cp "$PACKAGE_PATH" "$CURRENT_DIR/$PACKAGE_NAME"
-    PACKAGE_PATH="$CURRENT_DIR/$PACKAGE_NAME"
+    # 如果目标文件已存在，先删除
+    if [ -f "$TARGET_FILE" ]; then
+        echo "⚠️  目标文件已存在，删除旧文件..."
+        rm -f "$TARGET_FILE"
+    fi
+    # 移动文件
+    mv "$SOURCE_FILE" "$TARGET_FILE"
+    PACKAGE_PATH="$TARGET_FILE"
 fi
 
 # 返回原目录
