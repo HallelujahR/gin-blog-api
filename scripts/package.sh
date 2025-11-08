@@ -215,12 +215,25 @@ README_EOF
 echo ""
 echo "📦 打包成tar文件..."
 PACKAGE_NAME="docker-package-$(date +%Y%m%d-%H%M%S).tar.gz"
-cd "$TEMP_DIR"
-tar -czf "$PACKAGE_NAME" -C "$TEMP_DIR" docker-package
+CURRENT_DIR=$(pwd)
 
-# 移动到当前目录
-mv "$PACKAGE_NAME" "$(pwd)/"
-PACKAGE_PATH="$(pwd)/$PACKAGE_NAME"
+# 在临时目录中打包
+cd "$TEMP_DIR"
+tar -czf "$PACKAGE_NAME" docker-package
+
+# 移动到当前目录（如果不在同一目录）
+if [ "$(realpath "$TEMP_DIR/$PACKAGE_NAME")" != "$(realpath "$CURRENT_DIR/$PACKAGE_NAME")" ]; then
+    mv "$TEMP_DIR/$PACKAGE_NAME" "$CURRENT_DIR/$PACKAGE_NAME"
+    PACKAGE_PATH="$CURRENT_DIR/$PACKAGE_NAME"
+else
+    PACKAGE_PATH="$TEMP_DIR/$PACKAGE_NAME"
+    # 如果已经在当前目录，复制到当前目录
+    cp "$PACKAGE_PATH" "$CURRENT_DIR/$PACKAGE_NAME"
+    PACKAGE_PATH="$CURRENT_DIR/$PACKAGE_NAME"
+fi
+
+# 返回原目录
+cd "$CURRENT_DIR"
 
 echo ""
 echo "✅ 打包完成！"
