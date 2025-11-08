@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# 博客系统自动部署脚本（CentOS）
-# 功能：安装Docker、配置镜像源、部署应用
-# 使用方法: sudo ./scripts/deploy.sh [production|staging]
+# 博客系统自动部署脚本（从tar包部署）
+# 功能：从本地tar包安装Docker和镜像，然后部署应用
+# 使用方法: sudo ./scripts/deploy.sh [production|staging] [docker-package-path]
 
 set -e
 
 ENV=${1:-production}
+DOCKER_PACKAGE=${2:-docker-package.tar.gz}
 COMPOSE_FILE="docker-compose.yml"
 
 if [ "$ENV" = "production" ]; then
@@ -30,151 +31,50 @@ if [ -f /etc/redhat-release ]; then
     echo "✅ 检测到CentOS系统"
 elif [ -f /etc/debian_version ]; then
     OS_TYPE="debian"
-    echo "✅ 检测到Debian/Ubuntu系统"
+    echo "✅ 检测到Deiban/Ubuntu系统"
 else
     echo "⚠️  未知操作系统，假设为CentOS"
     OS_TYPE="centos"
 fi
 
-# ========== 配置yum阿里云镜像源（CentOS）==========
-if [ "$OS_TYPE" = "centos" ]; then
-    echo ""
-    echo "🔧 配置yum阿里云镜像源..."
-    
-    # 备份原有yum源
-    if [ ! -f /etc/yum.repos.d/CentOS-Base.repo.bak ]; then
-        cp -a /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak 2>/dev/null || true
-        echo "✅ 已备份原有yum源"
-    fi
-    
-    # 检测CentOS版本
-    CENTOS_VERSION=$(cat /etc/redhat-release | grep -oE '[0-9]+' | head -1)
-    
-    if [ "$CENTOS_VERSION" = "7" ]; then
-        echo "📋 检测到CentOS 7，配置阿里云镜像源..."
-        cat > /etc/yum.repos.d/CentOS-Base.repo <<'EOF'
-[base]
-name=CentOS-$releasever - Base - mirrors.aliyun.com
-failovermethod=priority
-baseurl=http://mirrors.aliyun.com/centos/$releasever/os/$basearch/
-gpgcheck=1
-gpgkey=http://mirrors.aliyun.com/centos/RPM-GPG-KEY-CentOS-7
-
-[updates]
-name=CentOS-$releasever - Updates - mirrors.aliyun.com
-failovermethod=priority
-baseurl=http://mirrors.aliyun.com/centos/$releasever/updates/$basearch/
-gpgcheck=1
-gpgkey=http://mirrors.aliyun.com/centos/RPM-GPG-KEY-CentOS-7
-
-[extras]
-name=CentOS-$releasever - Extras - mirrors.aliyun.com
-failovermethod=priority
-baseurl=http://mirrors.aliyun.com/centos/$releasever/extras/$basearch/
-gpgcheck=1
-gpgkey=http://mirrors.aliyun.com/centos/RPM-GPG-KEY-CentOS-7
-EOF
-    elif [ "$CENTOS_VERSION" = "8" ] || [ "$CENTOS_VERSION" = "9" ]; then
-        echo "📋 检测到CentOS $CENTOS_VERSION，配置阿里云镜像源..."
-        sed -e 's|^mirrorlist=|#mirrorlist=|g' \
-            -e 's|^#baseurl=http://mirror.centos.org|baseurl=https://mirrors.aliyun.com|g' \
-            -i /etc/yum.repos.d/CentOS-*.repo 2>/dev/null || true
-    fi
-    
-    # 清理yum缓存
-    yum clean all
-    yum makecache
-    echo "✅ yum阿里云镜像源配置完成"
-fi
-
-# ========== 修复Docker仓库配置（如果存在问题）==========
-if [ "$OS_TYPE" = "centos" ] && [ -f /etc/yum.repos.d/docker-ce.repo ]; then
-    echo ""
-    echo "🔍 检查Docker仓库配置..."
-    # 检查是否包含官方源URL
-    if grep -q "download.docker.com" /etc/yum.repos.d/docker-ce.repo; then
-        echo "⚠️  检测到Docker仓库使用官方源，正在修复为阿里云镜像..."
-        # 备份原配置
-        cp /etc/yum.repos.d/docker-ce.repo /etc/yum.repos.d/docker-ce.repo.bak.$(date +%Y%m%d_%H%M%S)
-        # 替换为阿里云镜像
-        sed -i 's|https://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
-        sed -i 's|http://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
-        echo "✅ Docker仓库配置已修复"
-        # 清理yum缓存
-        yum clean all
-        yum makecache fast
-    fi
-fi
-
-# ========== 安装Docker ==========
+# ========== 安装Docker（从tar包）==========
 echo ""
 echo "🔧 检查Docker安装状态..."
 if ! command -v docker &> /dev/null; then
-    echo "📦 安装Docker..."
+    echo "📦 从tar包安装Docker..."
     
-    if [ "$OS_TYPE" = "centos" ]; then
-        # 卸载旧版本Docker
-        yum remove -y docker docker-client docker-client-latest docker-common \
-            docker-latest docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null || true
-        
-        # 安装依赖
-        yum install -y yum-utils device-mapper-persistent-data lvm2
-        
-        # 删除可能存在的旧Docker仓库配置（使用官方源）
-        if [ -f /etc/yum.repos.d/docker-ce.repo ]; then
-            if grep -q "download.docker.com" /etc/yum.repos.d/docker-ce.repo; then
-                echo "🗑️  删除使用官方源的旧Docker仓库配置..."
-                rm -f /etc/yum.repos.d/docker-ce.repo
-            fi
-        fi
-        
-        # 如果Docker仓库配置不存在，创建阿里云镜像配置
-        if [ ! -f /etc/yum.repos.d/docker-ce.repo ]; then
-            echo "📝 创建Docker阿里云仓库配置..."
-            cat > /etc/yum.repos.d/docker-ce.repo <<'EOF'
-[docker-ce-stable]
-name=Docker CE Stable - $basearch
-baseurl=https://mirrors.aliyun.com/docker-ce/linux/centos/$releasever/$basearch/stable
-enabled=1
-gpgcheck=1
-gpgkey=https://mirrors.aliyun.com/docker-ce/linux/centos/gpg
-EOF
-        else
-            # 确保使用阿里云镜像
-            sed -i 's|https://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
-            sed -i 's|http://download.docker.com|https://mirrors.aliyun.com/docker-ce|g' /etc/yum.repos.d/docker-ce.repo
-        fi
-        
-        # 清理yum缓存
-        yum clean all
-        yum makecache fast
-        
-        # 安装Docker
-        echo "📦 正在安装Docker（使用阿里云镜像源）..."
-        yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-        
-    elif [ "$OS_TYPE" = "debian" ]; then
-        # 卸载旧版本
-        apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
-        
-        # 安装依赖
-        apt-get update
-        apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
-        
-        # 添加Docker阿里云GPG密钥
-        curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-        
-        # 添加Docker阿里云仓库
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-        
-        # 安装Docker
-        apt-get update
-        apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    # 检查Docker安装包是否存在
+    if [ ! -f "$DOCKER_PACKAGE" ]; then
+        echo "❌ Docker安装包不存在: $DOCKER_PACKAGE"
+        echo "💡 请先运行本地打包脚本: ./scripts/package.sh"
+        echo "💡 然后将打包文件上传到服务器"
+        exit 1
     fi
     
-    # 启动Docker服务
-    systemctl start docker
-    systemctl enable docker
+    # 解压Docker安装包
+    echo "📦 解压Docker安装包..."
+    EXTRACT_DIR=$(mktemp -d)
+    tar -xzf "$DOCKER_PACKAGE" -C "$EXTRACT_DIR"
+    DOCKER_PACKAGE_DIR="$EXTRACT_DIR/docker-package"
+    
+    if [ ! -d "$DOCKER_PACKAGE_DIR" ]; then
+        echo "❌ Docker安装包格式错误"
+        exit 1
+    fi
+    
+    # 运行安装脚本
+    if [ -f "$DOCKER_PACKAGE_DIR/install.sh" ]; then
+        echo "🚀 运行Docker安装脚本..."
+        chmod +x "$DOCKER_PACKAGE_DIR/install.sh"
+        "$DOCKER_PACKAGE_DIR/install.sh"
+    else
+        echo "❌ 未找到安装脚本"
+        exit 1
+    fi
+    
+    # 清理临时目录
+    rm -rf "$EXTRACT_DIR"
+    
     echo "✅ Docker安装完成"
 else
     DOCKER_VERSION=$(docker --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
@@ -266,8 +166,7 @@ elif command -v docker-compose &> /dev/null; then
 else
     echo "⚠️  Docker Compose未安装，尝试安装..."
     if [ "$OS_TYPE" = "centos" ]; then
-        # Docker 26.1+ 通常包含docker compose插件
-        # 如果没有，安装docker-compose独立版本
+        # 下载docker-compose
         curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         chmod +x /usr/local/bin/docker-compose
         DOCKER_COMPOSE_CMD="docker-compose"
@@ -305,75 +204,51 @@ if [ -d .git ]; then
     git pull origin main || echo "⚠️  Git pull失败，继续使用当前代码"
 fi
 
-# ========== 预先拉取基础镜像 ==========
+# ========== 检查Docker镜像 ==========
 echo ""
-echo "📥 预先拉取基础镜像（使用golang:1.22）..."
-IMAGES=(
+echo "🔍 检查必需的Docker镜像..."
+REQUIRED_IMAGES=(
     "golang:1.22"
     "mysql:8.0"
     "nginx:alpine"
     "node:latest"
 )
 
-# 拉取镜像函数（带重试机制）
-pull_image_with_retry() {
-    local image=$1
-    local max_retries=3
-    local retry=0
-    
-    while [ $retry -lt $max_retries ]; do
-        echo "📥 拉取镜像: $image (尝试 $((retry+1))/$max_retries)..."
-        
-        # 使用timeout命令（如果可用），超时时间设置为600秒
-        if command -v timeout &> /dev/null; then
-            if timeout 600 docker pull "$image" 2>&1; then
-                echo "✅ $image 拉取成功"
-                return 0
-            else
-                echo "⚠️  $image 拉取失败（尝试 $((retry+1))/$max_retries）"
-            fi
-        else
-            if docker pull "$image" 2>&1; then
-                echo "✅ $image 拉取成功"
-                return 0
-            else
-                echo "⚠️  $image 拉取失败（尝试 $((retry+1))/$max_retries）"
-            fi
-        fi
-        
-        retry=$((retry+1))
-        if [ $retry -lt $max_retries ]; then
-            echo "⏳ 等待5秒后重试..."
-            sleep 5
-        fi
-    done
-    
-    echo "❌ $image 拉取失败，将在构建时重试"
-    return 1
-}
-
-# 拉取所有镜像
-FAILED_IMAGES=()
-for image in "${IMAGES[@]}"; do
-    if ! pull_image_with_retry "$image"; then
-        FAILED_IMAGES+=("$image")
+MISSING_IMAGES=()
+for image in "${REQUIRED_IMAGES[@]}"; do
+    if docker images "$image" --format "{{.Repository}}:{{.Tag}}" | grep -q "$image"; then
+        echo "✅ 镜像已存在: $image"
+    else
+        echo "⚠️  镜像不存在: $image"
+        MISSING_IMAGES+=("$image")
     fi
-    echo ""
 done
 
-# 显示拉取结果
-if [ ${#FAILED_IMAGES[@]} -eq 0 ]; then
-    echo "✅ 所有镜像拉取成功！"
-else
-    echo "⚠️  以下镜像拉取失败，将在构建时重试："
-    for img in "${FAILED_IMAGES[@]}"; do
-        echo "   - $img"
-    done
+# 如果缺少镜像，尝试从tar包加载
+if [ ${#MISSING_IMAGES[@]} -gt 0 ]; then
     echo ""
-    echo "💡 如果构建时仍然失败，请检查："
-    echo "   1. 网络连接是否正常"
-    echo "   2. Docker镜像加速器配置是否正确：docker info | grep -A 10 'Registry Mirrors'"
-    echo "   3. 防火墙是否阻止了Docker镜像拉取"
+    echo "📥 尝试从tar包加载缺失的镜像..."
+    if [ -f "$DOCKER_PACKAGE" ]; then
+        EXTRACT_DIR=$(mktemp -d)
+        tar -xzf "$DOCKER_PACKAGE" -C "$EXTRACT_DIR"
+        IMAGES_DIR="$EXTRACT_DIR/docker-package/images"
+        
+        if [ -d "$IMAGES_DIR" ]; then
+            for image_tar in "$IMAGES_DIR"/*.tar; do
+                if [ -f "$image_tar" ]; then
+                    echo "📥 加载镜像: $(basename $image_tar)"
+                    docker load -i "$image_tar" || {
+                        echo "⚠️  镜像加载失败: $(basename $image_tar)"
+                        continue
+                    }
+                fi
+            done
+        fi
+        rm -rf "$EXTRACT_DIR"
+    else
+        echo "⚠️  未找到Docker安装包，无法加载镜像"
+        echo "💡 缺失的镜像将在构建时拉取"
+    fi
 fi
 
 # ========== 停止旧容器 ==========
