@@ -23,8 +23,7 @@ if [ "$(uname)" = "Linux" ]; then
             cat > /etc/docker/daemon.json <<EOF
 {
   "registry-mirrors": [
-    "https://registry.cn-hangzhou.aliyuncs.com",
-    "https://docker.mirrors.ustc.edu.cn"
+    "https://docker.1ms.run/library"
   ],
   "max-concurrent-downloads": 10
 }
@@ -50,8 +49,7 @@ else
     echo "   2. 进入 Settings > Docker Engine"
     echo "   3. 添加以下配置："
     echo '      "registry-mirrors": ['
-    echo '        "https://registry.cn-hangzhou.aliyuncs.com",'
-    echo '        "https://docker.mirrors.ustc.edu.cn"'
+    echo '        "https://docker.1ms.run/library"'
     echo '      ]'
     echo "   4. 点击 Apply & Restart"
 fi

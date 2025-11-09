@@ -18,7 +18,7 @@
 - **前端**: Vue.js应用，通过Nginx提供服务（端口80/443）
 - **数据库**: MySQL 8.0（端口3306）
 
-所有服务通过Docker容器运行，使用阿里云镜像加速。
+所有服务通过Docker容器运行，使用镜像加速器加速镜像拉取。
 
 ## 部署步骤
 
@@ -78,7 +78,7 @@ docker compose version
 
 ### 第二步：配置Docker镜像加速器
 
-为了加快镜像拉取速度，配置阿里云镜像加速器：
+为了加快镜像拉取速度，配置镜像加速器：
 
 ```bash
 # 创建Docker配置目录
@@ -88,8 +88,7 @@ sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json <<EOF
 {
   "registry-mirrors": [
-    "https://registry.cn-hangzhou.aliyuncs.com",
-    "https://docker.mirrors.ustc.edu.cn"
+    "https://docker.1ms.run/library"
   ],
   "max-concurrent-downloads": 10,
   "log-driver": "json-file",
@@ -466,7 +465,7 @@ cat /etc/docker/daemon.json
 sudo systemctl restart docker
 
 # 手动拉取镜像
-docker pull registry.cn-hangzhou.aliyuncs.com/acs/golang:latest
+docker pull golang:latest
 ```
 
 ## 性能优化建议

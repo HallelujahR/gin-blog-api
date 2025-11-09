@@ -30,13 +30,12 @@ else
     exit 1
 fi
 
-# 配置Docker镜像加速器（阿里云）
+# 配置Docker镜像加速器
 mkdir -p /etc/docker
 cat > /etc/docker/daemon.json <<EOF
 {
   "registry-mirrors": [
-    "https://registry.cn-hangzhou.aliyuncs.com",
-    "https://docker.mirrors.ustc.edu.cn"
+    "https://docker.1ms.run/library"
   ],
   "max-concurrent-downloads": 10,
   "log-driver": "json-file",
