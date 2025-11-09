@@ -1,81 +1,42 @@
 #!/bin/bash
 
-# 博客系统自动部署脚本（简化版）
-# 功能：从tar包加载镜像并部署应用
-# 使用方法: sudo ./scripts/deploy.sh [production|staging] [docker-package-path]
+# 博客系统自动化部署脚本
+# 使用方法: sudo ./scripts/deploy.sh [production|development]
 
 set -e
 
 ENV=${1:-production}
-DOCKER_PACKAGE=${2:-docker-package.tar.gz}
 COMPOSE_FILE="docker-compose.yml"
 
 if [ "$ENV" = "production" ]; then
     COMPOSE_FILE="docker-compose.prod.yml"
 fi
 
-# 检查是否为root用户
-if [ "$EUID" -ne 0 ]; then 
-    echo "❌ 请使用sudo运行此脚本"
-    exit 1
-fi
-
 echo "🚀 开始部署博客系统 (环境: $ENV)..."
 
-# ========== 检查Docker ==========
-echo ""
-echo "🔧 检查Docker..."
+# 检查Docker
 if ! command -v docker &> /dev/null; then
     echo "❌ Docker未安装，请先安装Docker"
     exit 1
 fi
 
-if ! docker info > /dev/null 2>&1; then
-    echo "❌ Docker服务未运行，请先启动Docker: sudo systemctl start docker"
-    exit 1
-fi
-
-DOCKER_VERSION=$(docker --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
-echo "✅ Docker已安装，版本: $DOCKER_VERSION"
-
-# ========== 检测Docker Compose ==========
-echo ""
-echo "🔧 检查Docker Compose..."
-DOCKER_COMPOSE_CMD=""
+# 检查Docker Compose
 if docker compose version &> /dev/null; then
-    DOCKER_COMPOSE_CMD="docker compose"
-    echo "✅ 使用Docker Compose插件: docker compose"
+    COMPOSE_CMD="docker compose"
 elif command -v docker-compose &> /dev/null; then
-    DOCKER_COMPOSE_CMD="docker-compose"
-    echo "✅ 使用Docker Compose独立命令: docker-compose"
+    COMPOSE_CMD="docker-compose"
 else
-    echo "❌ Docker Compose未安装，请先安装Docker Compose"
+    echo "❌ Docker Compose未安装"
     exit 1
 fi
 
-COMPOSE_VERSION=$($DOCKER_COMPOSE_CMD version --short 2>/dev/null || echo "unknown")
-echo "📋 Docker Compose版本: $COMPOSE_VERSION"
-
-# ========== 配置Docker镜像加速器 ==========
-echo ""
-echo "🔧 配置Docker镜像加速器..."
+# 配置Docker镜像加速器（阿里云）
 mkdir -p /etc/docker
-
-# 检查是否已有配置
-if [ ! -f /etc/docker/daemon.json ] || ! grep -q "registry-mirrors" /etc/docker/daemon.json; then
-    # 备份现有配置
-    if [ -f /etc/docker/daemon.json ]; then
-        cp /etc/docker/daemon.json /etc/docker/daemon.json.bak.$(date +%Y%m%d_%H%M%S)
-    fi
-    
-    # 创建或更新daemon.json
-    cat > /etc/docker/daemon.json <<'EOF'
+cat > /etc/docker/daemon.json <<EOF
 {
   "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com",
-    "https://mirror.baidubce.com",
-    "https://registry.docker-cn.com"
+    "https://registry.cn-hangzhou.aliyuncs.com",
+    "https://docker.mirrors.ustc.edu.cn"
   ],
   "max-concurrent-downloads": 10,
   "log-driver": "json-file",
@@ -85,172 +46,46 @@ if [ ! -f /etc/docker/daemon.json ] || ! grep -q "registry-mirrors" /etc/docker/
   }
 }
 EOF
-    
-    # 重启Docker服务
-    systemctl daemon-reload
-    systemctl restart docker
-    sleep 3
-    echo "✅ Docker镜像加速器配置完成"
-else
-    echo "✅ Docker镜像加速器已配置"
-fi
 
-# ========== 检查.env文件 ==========
-echo ""
-echo "🔍 检查环境配置文件..."
+systemctl daemon-reload
+systemctl restart docker || true
+
+# 检查.env文件
 if [ ! -f .env ]; then
-    echo "⚠️  .env文件不存在，正在从模板创建..."
     if [ -f env.template ]; then
         cp env.template .env
-        echo "✅ 已创建.env文件，请编辑配置数据库和API地址"
-        echo "   编辑命令: vi .env"
-        exit 1
-    elif [ -f .env.example ]; then
-        cp .env.example .env
-        echo "✅ 已创建.env文件，请编辑配置数据库和API地址"
-        echo "   编辑命令: vi .env"
+        echo "⚠️  已创建.env文件，请编辑配置后重新运行部署脚本"
         exit 1
     else
-        echo "❌ 找不到环境变量模板文件"
+        echo "❌ 找不到.env文件或env.template模板"
         exit 1
     fi
 fi
 
-# ========== 从tar包加载镜像 ==========
-echo ""
-echo "📥 从tar包加载Docker镜像..."
-
-# 检查tar包是否存在（项目根目录）
-if [ ! -f "$DOCKER_PACKAGE" ]; then
-    echo "❌ Docker镜像包不存在: $DOCKER_PACKAGE"
-    echo "💡 请确保tar包在项目根目录，或指定正确的路径"
-    exit 1
-fi
-
-# 解压tar包到临时目录
-EXTRACT_DIR=$(mktemp -d)
-echo "📦 解压镜像包..."
-tar -xzf "$DOCKER_PACKAGE" -C "$EXTRACT_DIR"
-
-IMAGES_DIR="$EXTRACT_DIR/docker-package/images"
-if [ ! -d "$IMAGES_DIR" ]; then
-    echo "❌ 镜像目录不存在: $IMAGES_DIR"
-    rm -rf "$EXTRACT_DIR"
-    exit 1
-fi
-echo "✅ 镜像目录存在: $IMAGES_DIR"
-
-# 加载所有镜像
-echo "📥 加载Docker镜像..."
-LOADED=0
-FAILED=0
-
-echo "开始加载镜像..."
-# 临时禁用错误退出，允许单个镜像加载失败
-set +e
-echo "=== 调试信息开始 ==="
-echo "当前目录: $(pwd)"
-echo "镜像目录: $IMAGES_DIR"
-echo "目录是否存在: $(if [ -d "$IMAGES_DIR" ]; then echo "是"; else echo "否"; fi)"
-
-# 检查目录内容
-echo "目录内容:"
-ls -la "$IMAGES_DIR" 2>/dev/null || echo "目录不存在或无法访问"
-
-# 检查 .tar 文件
-echo ".tar 文件列表:"
-ls "$IMAGES_DIR"/*.tar 2>/dev/null || echo "没有找到 .tar 文件"
-
-# 统计文件数量
-file_count=$(ls "$IMAGES_DIR"/*.tar 2>/dev/null | wc -l)
-echo "找到 $file_count 个 .tar 文件"
-
-echo "=== 开始循环处理 ==="
-
-LOADED=0
-FAILED=0
-
-for image_tar in "$IMAGES_DIR"/*.tar; do
-    echo "🔍 当前循环变量: $image_tar"
-    
-    # 检查文件是否存在且是普通文件
-    if [ ! -e "$image_tar" ]; then
-        echo "❌ 文件不存在: $image_tar"
-        continue
-    fi
-    
-    if [ ! -f "$image_tar" ]; then
-        echo "❌ 不是普通文件: $image_tar"
-        continue
-    fi
-    
-    IMAGE_NAME=$(basename "$image_tar" .tar)
-    echo "📥 加载镜像: $IMAGE_NAME (文件: $image_tar)"
-    
-    if docker load -i "$image_tar" 2>&1; then
-        echo "✅ $IMAGE_NAME 加载成功"
-        ((LOADED++))
-    else
-        echo "⚠️  $IMAGE_NAME 加载失败"
-        ((FAILED++))
-    fi
-    
-    echo "--- 循环结束 ---"
-done
-
-echo "=== 循环完成 ==="
-echo "📊 统计: $LOADED 成功, $FAILED 失败"
-
-# 清理临时目录
-rm -rf "$EXTRACT_DIR"
-
-if [ $LOADED -gt 0 ]; then
-    echo "✅ 成功加载 $LOADED 个镜像"
-fi
-if [ $FAILED -gt 0 ]; then
-    echo "⚠️  $FAILED 个镜像加载失败"
-fi
-# 重新启用错误退出
-set -e
-# ========== 停止旧容器 ==========
-echo ""
+# 停止旧容器
 echo "🛑 停止旧容器..."
-$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down || true
+$COMPOSE_CMD -f $COMPOSE_FILE down || true
 
-# ========== 构建镜像 ==========
-echo ""
+# 构建镜像
 echo "🔨 构建Docker镜像..."
-$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE build --no-cache
+$COMPOSE_CMD -f $COMPOSE_FILE build --no-cache
 
-# ========== 启动服务 ==========
-echo ""
+# 启动服务
 echo "🚀 启动服务..."
-$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d
+$COMPOSE_CMD -f $COMPOSE_FILE up -d
 
-# ========== 等待服务启动 ==========
-echo ""
+# 等待服务启动
 echo "⏳ 等待服务启动..."
-sleep 10
+sleep 15
 
-# ========== 检查服务状态 ==========
-echo ""
-echo "📊 检查服务状态..."
-$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE ps
-
-# ========== 显示日志 ==========
-echo ""
-echo "📋 最近日志:"
-$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE logs --tail=50
+# 检查服务状态
+echo "📊 服务状态:"
+$COMPOSE_CMD -f $COMPOSE_FILE ps
 
 echo ""
 echo "✅ 部署完成！"
 echo ""
-echo "📝 服务地址:"
-echo "   - 前端: http://your-domain.com"
-echo "   - API: http://your-domain.com:8080"
-echo ""
-echo "🔍 常用命令:"
-echo "   查看日志: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE logs -f"
-echo "   停止服务: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down"
-echo "   重启服务: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE restart"
-echo "   查看状态: $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE ps"
+echo "📝 常用命令:"
+echo "   查看日志: $COMPOSE_CMD -f $COMPOSE_FILE logs -f"
+echo "   停止服务: $COMPOSE_CMD -f $COMPOSE_FILE down"
+echo "   重启服务: $COMPOSE_CMD -f $COMPOSE_FILE restart"
