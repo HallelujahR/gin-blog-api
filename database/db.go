@@ -2,9 +2,10 @@ package database
 
 import (
 	"fmt"
-	"gorm.io/gorm/logger"
 	"os"
 	"sync"
+
+	"gorm.io/gorm/logger"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -39,7 +40,7 @@ func getDSN() string {
 		dbUser := os.Getenv("DB_USER")
 		dbPassword := os.Getenv("DB_PASSWORD")
 		dbName := os.Getenv("DB_NAME")
-		
+
 		// 设置默认值
 		if dbHost == "" {
 			dbHost = "mysql"
@@ -48,12 +49,12 @@ func getDSN() string {
 			dbPort = "3306"
 		}
 		if dbUser == "" {
-			dbUser = "blog_user"
+			dbUser = "root"
 		}
 		if dbName == "" {
 			dbName = "blog"
 		}
-		
+
 		// 构建DSN
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 			dbUser, dbPassword, dbHost, dbPort, dbName)

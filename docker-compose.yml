@@ -45,24 +45,6 @@ services:
     networks:
       - blog-network
 
-  # 前端Nginx服务
-  frontend:
-    image: docker.1ms.run/library/nginx:latest
-    pull_policy: never
-    container_name: blog-frontend
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ../front/dist:/usr/share/nginx/html:ro
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - api
-    networks:
-      - blog-network
-
 volumes:
   mysql_data:
     driver: local
