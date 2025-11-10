@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # MySQL数据库
   mysql:
-    image: docker.1ms.run/library/mysql:latest
+    image: docker.1ms.run/library/mysql:8.0.44
     pull_policy: never
     container_name: blog-mysql
     restart: always

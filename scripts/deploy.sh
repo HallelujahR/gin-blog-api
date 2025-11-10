@@ -50,7 +50,7 @@ fi
 echo "🔍 检查必需的Docker镜像..."
 REQUIRED_IMAGES=(
     "docker.1ms.run/library/golang:latest"
-    "docker.1ms.run/library/mysql:latest"
+    "docker.1ms.run/library/mysql:8.0.44"
     "docker.1ms.run/library/nginx:latest"
 )
 

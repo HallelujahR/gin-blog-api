@@ -7,7 +7,7 @@
 服务器上需要已安装以下 Docker 镜像：
 
 - `docker.1ms.run/library/golang:latest`
-- `docker.1ms.run/library/mysql:latest`
+- `docker.1ms.run/library/mysql:8.0.44`
 - `docker.1ms.run/library/nginx:latest`
 - `docker.1ms.run/library/node:latest` (可选，用于前端构建)
 
@@ -21,7 +21,7 @@ docker images | grep "docker.1ms.run/library"
 
 应该看到以下镜像：
 - docker.1ms.run/library/golang:latest
-- docker.1ms.run/library/mysql:latest
+- docker.1ms.run/library/mysql:8.0.44
 - docker.1ms.run/library/nginx:latest
 - docker.1ms.run/library/node:latest
 
@@ -135,7 +135,7 @@ docker load -i <镜像包路径>
 
 # 或从镜像源拉取（如果网络允许）
 docker pull docker.1ms.run/library/golang:latest
-docker pull docker.1ms.run/library/mysql:latest
+docker pull docker.1ms.run/library/mysql:8.0.44
 docker pull docker.1ms.run/library/nginx:latest
 ```
 
