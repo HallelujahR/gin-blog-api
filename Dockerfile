@@ -1,5 +1,5 @@
 # 多阶段构建 - 构建阶段
-FROM golang:latest AS builder
+FROM docker.1ms.run/library/golang:latest AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -27,14 +27,11 @@ COPY . .
 # 构建应用
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags '-w -s' -o api .
 
-# 运行阶段
-FROM debian:latest
+# 运行阶段（使用golang镜像，因为nginx镜像可能缺少运行时依赖）
+FROM docker.1ms.run/library/golang:latest
 
 # 设置工作目录
 WORKDIR /app
-
-# 安装必要的运行时依赖
-RUN apt-get update && apt-get install -y ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
 
 # 设置时区
 ENV TZ=Asia/Shanghai

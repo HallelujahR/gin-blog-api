@@ -30,14 +30,11 @@ else
     exit 1
 fi
 
-# 配置Docker镜像加速器
+# 配置Docker日志（可选）
 mkdir -p /etc/docker
-cat > /etc/docker/daemon.json <<EOF
+if [ ! -f /etc/docker/daemon.json ]; then
+    cat > /etc/docker/daemon.json <<EOF
 {
-  "registry-mirrors": [
-    "https://docker.1ms.run/library"
-  ],
-  "max-concurrent-downloads": 10,
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",
@@ -45,9 +42,41 @@ cat > /etc/docker/daemon.json <<EOF
   }
 }
 EOF
+    systemctl daemon-reload
+    systemctl restart docker || true
+fi
 
-systemctl daemon-reload
-systemctl restart docker || true
+# 检查必需的Docker镜像是否存在
+echo "🔍 检查必需的Docker镜像..."
+REQUIRED_IMAGES=(
+    "docker.1ms.run/library/golang:latest"
+    "docker.1ms.run/library/mysql:latest"
+    "docker.1ms.run/library/nginx:latest"
+)
+
+MISSING_IMAGES=()
+for image in "${REQUIRED_IMAGES[@]}"; do
+    if docker images "$image" --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -q "^${image}$" || \
+       docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep -q "^${image}$" || \
+       docker images --format "{{.ID}}" "$image" 2>/dev/null | grep -q .; then
+        echo "✅ 镜像存在: $image"
+    else
+        echo "❌ 镜像不存在: $image"
+        MISSING_IMAGES+=("$image")
+    fi
+done
+
+if [ ${#MISSING_IMAGES[@]} -gt 0 ]; then
+    echo ""
+    echo "❌ 以下必需的镜像不存在，请先加载镜像："
+    for img in "${MISSING_IMAGES[@]}"; do
+        echo "   - $img"
+    done
+    echo ""
+    echo "💡 提示: 如果已有镜像包，请先加载："
+    echo "   docker load -i <镜像包路径>"
+    exit 1
+fi
 
 # 检查.env文件
 if [ ! -f .env ]; then
@@ -65,9 +94,9 @@ fi
 echo "🛑 停止旧容器..."
 $COMPOSE_CMD -f $COMPOSE_FILE down || true
 
-# 构建镜像
+# 构建镜像（使用本地基础镜像）
 echo "🔨 构建Docker镜像..."
-$COMPOSE_CMD -f $COMPOSE_FILE build --no-cache
+$COMPOSE_CMD -f $COMPOSE_FILE build --no-cache --pull=false
 
 # 启动服务
 echo "🚀 启动服务..."

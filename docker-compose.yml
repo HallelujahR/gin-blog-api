@@ -3,7 +3,8 @@ version: '3.8'
 services:
   # MySQL数据库
   mysql:
-    image: mysql:8.0
+    image: docker.1ms.run/library/mysql:latest
+    pull_policy: never
     container_name: blog-mysql
     restart: unless-stopped
     ports:
@@ -46,7 +47,8 @@ services:
 
   # 前端Nginx服务
   frontend:
-    image: nginx:latest
+    image: docker.1ms.run/library/nginx:latest
+    pull_policy: never
     container_name: blog-frontend
     restart: unless-stopped
     ports:
