@@ -98,6 +98,51 @@ $COMPOSE_CMD -f $COMPOSE_FILE down || true
 echo "🔨 构建Docker镜像..."
 $COMPOSE_CMD -f $COMPOSE_FILE build --no-cache --pull=false
 
+# 构建前端（若存在指定目录）
+FRONT_DIR="/opt/blog/gin-blog-vue-font"
+if [ -d "$FRONT_DIR" ]; then
+    echo "🧱 构建前端(Vue)..."
+    docker run --rm \
+      -v "$FRONT_DIR":/app \
+      -w /app \
+      docker.1ms.run/library/node:latest sh -lc "corepack enable || true; (npm ci || npm install) && npm run build"
+    # 简单校验
+    if [ ! -d "$FRONT_DIR/dist" ]; then
+        echo "❌ 前端构建失败：未找到 $FRONT_DIR/dist"
+        exit 1
+    fi
+else
+    echo "ℹ️ 未检测到前端目录 $FRONT_DIR，跳过前端构建"
+fi
+
+# 确保存在默认的Nginx配置（用于 /api 反向代理）
+NGINX_CONF_DIR="./docker/nginx/conf.d"
+mkdir -p "$NGINX_CONF_DIR"
+DEFAULT_CONF="$NGINX_CONF_DIR/default.conf"
+if [ ! -f "$DEFAULT_CONF" ]; then
+cat > "$DEFAULT_CONF" <<'CONF'
+server {
+    listen 80;
+    server_name _;
+
+    # 前端静态资源
+    location / {
+        root /usr/share/nginx/html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 后端API代理
+    location /api/ {
+        proxy_pass http://api:8080/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+CONF
+fi
+
 # 启动服务
 echo "🚀 启动服务..."
 $COMPOSE_CMD -f $COMPOSE_FILE up -d
