@@ -49,9 +49,9 @@ for image in "${IMAGES[@]}"; do
         IMAGE_FILE=$(echo "$image" | tr '/:' '_').tar
         echo "💾 导出镜像: $IMAGE_FILE"
         docker save "$image" -o "$PACKAGE_DIR/$IMAGE_FILE" || {
-            echo "⚠️  镜像导出失败: $image"
-            continue
-        }
+        echo "⚠️  镜像导出失败: $image"
+        continue
+    }
         echo "✅ 镜像导出成功"
     else
         echo "❌ 镜像不存在: $image"
@@ -80,7 +80,7 @@ echo "📦 打包成tar文件..."
 PACKAGE_NAME="docker-images.tar.gz"
 CURRENT_DIR=$(pwd)
 cd "$TEMP_DIR"
-tar -czf "$PACKAGE_NAME" docker-package
+    tar -czf "$PACKAGE_NAME" docker-package
 mv "$PACKAGE_NAME" "$CURRENT_DIR/$PACKAGE_NAME"
 cd "$CURRENT_DIR"
 

@@ -48,6 +48,9 @@ func GetPost(c *gin.Context) {
 		return
 	}
 
+	// 记录浏览流量（每次访问详情都增加一次浏览数）
+	service.RecordView(id)
+
 	// 确保返回空数组而不是nil
 	if categories == nil {
 		categories = []models.Category{}

@@ -5,7 +5,7 @@ import (
 	"api/models"
 )
 
-// 查询是否点赞
+// 查询是否点赞（基于userID）
 func GetLike(userID uint64, postID, commentID *uint64) (*models.Like, error) {
 	var like models.Like
 	db := database.GetDB().Where("user_id = ?", userID)

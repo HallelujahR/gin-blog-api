@@ -2,16 +2,16 @@ package controllers
 
 import (
 	"api/service"
+	"api/utils"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-// 点赞或取消点赞
+// 点赞或取消点赞（基于IP，不依赖用户ID）
 func ToggleLike(c *gin.Context) {
 	var req struct {
-		UserID    uint64  `json:"user_id" binding:"required"`
 		PostID    *uint64 `json:"post_id"`
 		CommentID *uint64 `json:"comment_id"`
 	}
@@ -19,7 +19,11 @@ func ToggleLike(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	msg, err := service.ToggleLike(req.UserID, req.PostID, req.CommentID)
+	
+	// 获取客户端IP
+	ip := utils.GetClientIP(c)
+	
+	msg, err := service.ToggleLike(ip, req.PostID, req.CommentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 		return

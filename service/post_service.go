@@ -2,6 +2,7 @@ package service
 
 import (
 	"api/dao"
+	"api/database"
 	"api/models"
 	"fmt"
 	"math"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"gorm.io/gorm"
 )
 
 // 创建文章，并分配分类和标签
@@ -191,6 +193,13 @@ func GetPostWithFullRelations(id uint64) (*models.Post, []models.Category, []mod
 	}
 	
 	return post, categories, tags, nil
+}
+
+// RecordView 记录浏览流量（每次访问详情都增加一次浏览数）
+func RecordView(postID uint64) {
+	// 直接更新文章浏览数，不记录IP
+	db := database.GetDB()
+	db.Model(&models.Post{}).Where("id = ?", postID).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
 }
 
 // 分页响应结构
