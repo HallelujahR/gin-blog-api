@@ -3,6 +3,7 @@ package dao
 import (
 	"api/database"
 	"api/models"
+	"strings"
 )
 
 // 新增文章
@@ -48,9 +49,8 @@ func ListPostsWithParams(page int, pageSize int, q, sort, category, tag, status 
 	if q != "" {
 		db = db.Where("posts.title LIKE ? OR posts.content LIKE ?", q+"%", q+"%")
 	}
-	if sort != "" {
-		db = db.Order("posts.created_at " + sort)
-	}
+	orderDirection := sanitizeSortOrder(sort)
+	db = db.Order("posts.created_at " + orderDirection)
 	if category != "" {
 		db = db.Where("categories.slug = ?", category)
 	}
@@ -60,6 +60,14 @@ func ListPostsWithParams(page int, pageSize int, q, sort, category, tag, status 
 	err := db.Limit(pageSize).Offset((page - 1) * pageSize).Find(&posts).Error
 
 	return posts, err
+}
+
+func sanitizeSortOrder(input string) string {
+	dir := strings.ToUpper(strings.TrimSpace(input))
+	if dir != "ASC" && dir != "DESC" {
+		return "DESC"
+	}
+	return dir
 }
 
 // 更新
