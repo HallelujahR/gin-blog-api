@@ -88,27 +88,27 @@ func AddTagToPost(postID, tagID uint64) error {
 func CountPosts(q, sort, category, tag, status string) (int64, error) {
 	var count int64
 	db := database.GetDB().Model(&models.Post{})
-	
+
 	if status != "" {
 		db = db.Where("status = ?", status)
 	}
-	
+
 	if q != "" {
 		db = db.Where("title LIKE ? OR content LIKE ?", "%"+q+"%", "%"+q+"%")
 	}
-	
+
 	if category != "" {
 		db = db.Joins("JOIN post_categories ON post_categories.post_id = posts.id").
 			Joins("JOIN categories ON categories.id = post_categories.category_id").
 			Where("categories.slug = ?", category)
 	}
-	
+
 	if tag != "" {
 		db = db.Joins("JOIN post_tags ON post_tags.post_id = posts.id").
 			Joins("JOIN tags ON tags.id = post_tags.tag_id").
 			Where("tags.slug = ?", tag)
 	}
-	
+
 	err := db.Count(&count).Error
 	return count, err
 }
@@ -167,7 +167,7 @@ func GetPostCategories(postID uint64) ([]models.Category, error) {
 		Joins("INNER JOIN post_categories ON post_categories.category_id = categories.id").
 		Where("post_categories.post_id = ?", postID).
 		Find(&categories).Error
-	
+
 	// GORM的Find不会返回nil，但为了安全起见确保不是nil
 	if categories == nil {
 		categories = []models.Category{}
@@ -183,7 +183,7 @@ func GetPostTags(postID uint64) ([]models.Tag, error) {
 		Joins("INNER JOIN post_tags ON post_tags.tag_id = tags.id").
 		Where("post_tags.post_id = ?", postID).
 		Find(&tags).Error
-	
+
 	// GORM的Find不会返回nil，但为了安全起见确保不是nil
 	if tags == nil {
 		tags = []models.Tag{}

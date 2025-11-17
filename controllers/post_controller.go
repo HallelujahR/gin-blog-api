@@ -130,7 +130,7 @@ func ListPosts(c *gin.Context) {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
-	posts, err := service.ListPostsWithParams(req.Page, req.Size, req.Q, req.Sort, req.Category, req.Tag, "published")
+	posts, err := service.ListPostsWithParams(req.Page, req.Size, req.Q, "DESC", req.Category, req.Tag, "published")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
