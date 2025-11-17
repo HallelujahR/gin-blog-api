@@ -24,14 +24,9 @@ BINARY_PATH="$BIN_DIR/api"
 LOG_DIR="$PROJECT_ROOT/logs"
 ENV_FILE="$PROJECT_ROOT/.env"
 
-# 前端与 Nginx 相关配置，可通过环境变量覆盖
+# 前端构建相关配置，可通过环境变量覆盖
 FRONTEND_DIR="${FRONTEND_DIR:-/www/wwwroot/blog/gin-blog-vue-font}"
 FRONTEND_DIST="$FRONTEND_DIR/dist"
-NGINX_CONF_FILE="${NGINX_CONF_FILE:-/etc/nginx/conf.d/blog.conf}"
-NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-_}"
-API_INTERNAL_HOST="${API_INTERNAL_HOST:-127.0.0.1}"
-API_INTERNAL_PORT="${API_INTERNAL_PORT:-8080}"
-API_INTERNAL_URL="http://${API_INTERNAL_HOST}:${API_INTERNAL_PORT}"
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -55,7 +50,6 @@ check_prerequisites() {
   command -v go >/dev/null 2>&1 || die "未检测到 go，请先安装 Go 1.25+"
   command -v systemctl >/dev/null 2>&1 || die "当前系统不支持 systemd"
   command -v npm >/dev/null 2>&1 || die "未检测到 npm，请先安装 Node.js 18+"
-  command -v nginx >/dev/null 2>&1 || die "未检测到 nginx，请先安装 Nginx"
   [[ -f "$ENV_FILE" ]] || die "未找到 .env，请先根据 env.template 创建"
   [[ -d "$FRONTEND_DIR" ]] || die "未找到前端目录 $FRONTEND_DIR"
 }
@@ -128,37 +122,8 @@ build_frontend() {
 }
 
 write_nginx_conf() {
-  log "更新 Nginx 配置 $NGINX_CONF_FILE"
-  cat <<NGINX | tee "$NGINX_CONF_FILE" >/dev/null
-server {
-    listen 80;
-    server_name $NGINX_SERVER_NAME;
-    root $FRONTEND_DIST;
-    index index.html;
-
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass $API_INTERNAL_URL;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_http_version 1.1;
-    }
-}
-NGINX
-
-  log "检测 Nginx 配置"
-  nginx -t
-  log "重新加载 Nginx"
-  systemctl reload nginx
-}
-
 deploy_frontend_stack() {
   build_frontend
-  write_nginx_conf
 }
 
 case "$COMMAND" in
