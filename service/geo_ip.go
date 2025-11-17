@@ -40,27 +40,44 @@ func LookupRegion(ip string) string {
 	if err != nil {
 		return "UNKNOWN"
 	}
-	if city := record.City.Names["zh-CN"]; city != "" {
+
+	// 优先返回省份（Subdivision）
+	if name := subdivisionName(record); name != "" {
+		return name
+	}
+	// 其次返回城市
+	if city := localizedName(record.City.Names); city != "" {
 		return city
 	}
-	if city := record.City.Names["en"]; city != "" {
-		return city
-	}
-	if region := record.Subdivisions; len(region) > 0 {
-		if name := region[0].Names["zh-CN"]; name != "" {
-			return name
-		}
-		if name := region[0].Names["en"]; name != "" {
-			return name
-		}
-	}
-	if country := record.Country.Names["zh-CN"]; country != "" {
-		return country
-	}
-	if country := record.Country.Names["en"]; country != "" {
+	// 最后返回国家
+	if country := localizedName(record.Country.Names); country != "" {
 		return country
 	}
 	return "UNKNOWN"
+}
+
+func subdivisionName(record *geoip2.City) string {
+	if record == nil || len(record.Subdivisions) == 0 {
+		return ""
+	}
+	names := record.Subdivisions[0].Names
+	if name := localizedName(names); name != "" {
+		return name
+	}
+	return ""
+}
+
+func localizedName(names map[string]string) string {
+	if names == nil {
+		return ""
+	}
+	if name := names["zh-CN"]; name != "" {
+		return name
+	}
+	if name := names["en"]; name != "" {
+		return name
+	}
+	return ""
 }
 
 func initGeoDB() {

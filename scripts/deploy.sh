@@ -37,7 +37,7 @@ error() { echo -e "\033[1;31m[ERR ]\033[0m $*"; }
 
 die() {
   error "$*"
-  exit 1
+    exit 1
 }
 
 require_root() {
@@ -67,7 +67,7 @@ update_repo() {
     git -C "$dir" pull --ff-only
   else
     warn "$dir 不是 Git 仓库，跳过拉取"
-  fi
+fi
 }
 
 update_code() {
@@ -122,7 +122,7 @@ build_frontend() {
   log "构建前端 ($FRONTEND_DIR)..."
   if [[ ! -d "$FRONTEND_DIR" ]]; then
     die "前端目录 $FRONTEND_DIR 不存在，无法构建"
-  fi
+fi
   pushd "$FRONTEND_DIR" >/dev/null
   if [[ -f package-lock.json ]]; then
     npm ci

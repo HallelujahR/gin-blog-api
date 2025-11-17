@@ -11,7 +11,7 @@ import (
 func Aggregate(entries []LogEntry, summary VisitSummary) StatsResult {
 	visitorSet := make(map[string]struct{})
 	regionCount := make(map[string]int)
-	totalLogEntries := len(entries)
+	totalRegionEntries := 0
 
 	for _, entry := range entries {
 		if entry.IP != "" {
@@ -19,14 +19,15 @@ func Aggregate(entries []LogEntry, summary VisitSummary) StatsResult {
 		}
 		if region, ok := normalizeRegion(entry.Region, entry.IP); ok {
 			regionCount[region]++
+			totalRegionEntries++
 		}
 	}
 
 	regionStats := make([]RegionStat, 0, len(regionCount))
 	for region, count := range regionCount {
 		percentage := 0.0
-		if totalLogEntries > 0 {
-			percentage = float64(count*100) / float64(totalLogEntries)
+		if totalRegionEntries > 0 {
+			percentage = float64(count*100) / float64(totalRegionEntries)
 		}
 		regionStats = append(regionStats, RegionStat{
 			Name:       region,
@@ -55,6 +56,7 @@ func round(val float64, n int) float64 {
 	return float64(int(val*power+0.5)) / power
 }
 
+// normalizeRegion 返回可统计的地区名，忽略本地访问并将空值标记为 UNKNOWN。
 func normalizeRegion(value, ip string) (string, bool) {
 	region := strings.TrimSpace(value)
 	if region == "" {
@@ -63,12 +65,13 @@ func normalizeRegion(value, ip string) (string, bool) {
 	if region == "" {
 		region = "UNKNOWN"
 	}
-	if isLocalRegion(region) {
+	if isIgnoredRegion(region) {
 		return "", false
 	}
 	return region, true
 }
 
-func isLocalRegion(region string) bool {
-	return strings.EqualFold(strings.TrimSpace(region), "local")
+func isIgnoredRegion(region string) bool {
+	value := strings.TrimSpace(region)
+	return strings.EqualFold(value, "local") || strings.EqualFold(value, "unknown")
 }

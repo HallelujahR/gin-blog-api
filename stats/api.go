@@ -2,6 +2,7 @@ package stats
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -13,11 +14,8 @@ const (
 )
 
 // Handler 返回博客访问统计信息。
-// 读取最近30天访问日志，当日志不存在时返回空统计结果。
-// 结果会缓存一段时间，减少频繁的磁盘读取与解析。
+// 优先命中 Redis 缓存；未命中时实时汇总并写回缓存。
 func Handler(c *gin.Context) {
-	ensureScheduler()
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 
@@ -28,12 +26,13 @@ func Handler(c *gin.Context) {
 
 	entries, err := LoadRecentEntries(ctx, defaultLookbackDays)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		fmt.Printf("[stats] load entries error: %v\n", err)
+		entries = nil
 	}
 
 	summary, err := BuildVisitSummary(defaultLookbackDays, defaultTopPosts)
 	if err != nil {
+		fmt.Printf("[stats] build summary error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -42,7 +41,7 @@ func Handler(c *gin.Context) {
 	result.GeneratedAt = time.Now().UTC()
 
 	if err := SetStatsCache(ctx, result, defaultCacheTTL); err != nil {
-		// 缓存失败不影响主流程
+		fmt.Printf("[stats] set cache error: %v\n", err)
 	}
 
 	c.JSON(http.StatusOK, result)
