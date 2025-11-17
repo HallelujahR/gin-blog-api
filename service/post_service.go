@@ -5,12 +5,12 @@ import (
 	"api/database"
 	"api/models"
 	"fmt"
+	"gorm.io/gorm"
 	"math"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"gorm.io/gorm"
 )
 
 // 创建文章，并分配分类和标签
@@ -117,7 +117,7 @@ func EnsureUniqueSlug(slug string, excludeID uint64) string {
 	if !dao.PostSlugExists(slug, excludeID) {
 		return slug
 	}
-	
+
 	// 如果已存在，添加数字后缀
 	for i := 1; i < 1000; i++ {
 		newSlug := fmt.Sprintf("%s-%d", slug, i)
@@ -125,7 +125,7 @@ func EnsureUniqueSlug(slug string, excludeID uint64) string {
 			return newSlug
 		}
 	}
-	
+
 	// 如果1000次都失败，使用时间戳
 	return fmt.Sprintf("%s-%d", slug, time.Now().Unix())
 }
@@ -135,7 +135,7 @@ func UpdatePostCategoriesAndTags(postID uint64, categoryIDs, tagIDs []uint64) er
 	// 删除旧的关联
 	dao.DeletePostCategories(postID)
 	dao.DeletePostTags(postID)
-	
+
 	// 添加新的关联
 	for _, cid := range categoryIDs {
 		if err := dao.AddCategoryToPost(postID, cid); err != nil {
@@ -156,11 +156,11 @@ func GetPostWithRelations(id uint64) (*models.Post, []uint64, []uint64, error) {
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	
+
 	// 获取关联的分类和标签ID
 	categoryIDs, _ := dao.GetPostCategoryIDs(id)
 	tagIDs, _ := dao.GetPostTagIDs(id)
-	
+
 	return post, categoryIDs, tagIDs, nil
 }
 
@@ -170,20 +170,20 @@ func GetPostWithFullRelations(id uint64) (*models.Post, []models.Category, []mod
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	
+
 	// 获取关联的分类和标签完整信息
 	categories, err := dao.GetPostCategories(id)
 	if err != nil {
 		// 如果查询失败，返回空数组而不是nil
 		categories = []models.Category{}
 	}
-	
+
 	tags, err := dao.GetPostTags(id)
 	if err != nil {
 		// 如果查询失败，返回空数组而不是nil
 		tags = []models.Tag{}
 	}
-	
+
 	// 确保返回的不是nil
 	if categories == nil {
 		categories = []models.Category{}
@@ -191,7 +191,7 @@ func GetPostWithFullRelations(id uint64) (*models.Post, []models.Category, []mod
 	if tags == nil {
 		tags = []models.Tag{}
 	}
-	
+
 	return post, categories, tags, nil
 }
 
@@ -200,6 +200,8 @@ func RecordView(postID uint64) {
 	// 直接更新文章浏览数，不记录IP
 	db := database.GetDB()
 	db.Model(&models.Post{}).Where("id = ?", postID).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
+	// 记录每日访问统计（忽略错误，避免影响主流程）
+	_ = dao.IncrementPostViewStat(postID, time.Now())
 }
 
 // 分页响应结构
@@ -223,19 +225,19 @@ func ListPostsWithPagination(page, pageSize int, q, sort, category, tag, status 
 	if pageSize > 100 {
 		pageSize = 100 // 限制最大每页数量
 	}
-	
+
 	// 获取总数
 	total, err := dao.CountPosts(q, sort, category, tag, status)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 获取文章列表
 	posts, err := dao.ListPostsWithParams(page, pageSize, q, sort, category, tag, status)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// 转换分类和标签数据
 	for i := range posts {
 		if posts[i].CategoryNamesStr != "" {
@@ -247,10 +249,10 @@ func ListPostsWithPagination(page, pageSize int, q, sort, category, tag, status 
 			posts[i].TagIDs = stringToUint64Slice(posts[i].TagIDsStr)
 		}
 	}
-	
+
 	// 计算总页数
 	totalPages := int(math.Ceil(float64(total) / float64(pageSize)))
-	
+
 	return &PostListResponse{
 		Posts:      posts,
 		Total:      total,

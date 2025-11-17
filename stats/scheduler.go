@@ -31,11 +31,15 @@ func runRefresh() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	entries, err := LoadRecentEntries(ctx, 30)
+	entries, err := LoadRecentEntries(ctx, defaultLookbackDays)
 	if err != nil {
 		return
 	}
-	result := Aggregate(entries, 3)
+	summary, err := BuildVisitSummary(defaultLookbackDays, defaultTopPosts)
+	if err != nil {
+		return
+	}
+	result := Aggregate(entries, summary)
 	result.GeneratedAt = time.Now().UTC()
 	_ = SetStatsCache(ctx, result, defaultCacheTTL)
 }

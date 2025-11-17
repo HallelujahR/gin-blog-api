@@ -26,13 +26,19 @@ func Handler(c *gin.Context) {
 		return
 	}
 
-	entries, err := LoadRecentEntries(ctx, 30)
+	entries, err := LoadRecentEntries(ctx, defaultLookbackDays)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	result := Aggregate(entries, 3)
+	summary, err := BuildVisitSummary(defaultLookbackDays, defaultTopPosts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	result := Aggregate(entries, summary)
 	result.GeneratedAt = time.Now().UTC()
 
 	if err := SetStatsCache(ctx, result, defaultCacheTTL); err != nil {

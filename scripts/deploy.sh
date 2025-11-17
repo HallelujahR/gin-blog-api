@@ -59,6 +59,22 @@ ensure_dirs() {
   mkdir -p "$LOG_DIR"
 }
 
+update_repo() {
+  local dir="$1"
+  if [[ -d "$dir/.git" ]]; then
+    log "拉取最新代码 ($dir)..."
+    git -C "$dir" fetch --all --prune
+    git -C "$dir" pull --ff-only
+  else
+    warn "$dir 不是 Git 仓库，跳过拉取"
+  fi
+}
+
+update_code() {
+  update_repo "$PROJECT_ROOT"
+  update_repo "$FRONTEND_DIR"
+}
+
 build_binary() {
   log "编译 Go 项目 (GOOS=linux GOARCH=amd64)..."
   (cd "$PROJECT_ROOT" && GOOS=linux GOARCH=amd64 go build -o "$BINARY_PATH" ./)
@@ -130,6 +146,7 @@ case "$COMMAND" in
     require_root
     check_prerequisites
     ensure_dirs
+    update_code
     build_binary
     build_frontend
     log "仅构建完成，如需启动请执行 sudo systemctl restart $SERVICE_NAME && sudo systemctl reload nginx"
@@ -138,6 +155,7 @@ case "$COMMAND" in
     require_root
     check_prerequisites
     ensure_dirs
+    update_code
     if [[ ! -x "$BINARY_PATH" ]]; then
       warn "未找到二进制，自动触发构建"
       build_binary
@@ -150,6 +168,7 @@ case "$COMMAND" in
     require_root
     check_prerequisites
     ensure_dirs
+    update_code
     build_binary
     write_service_file
     reload_service

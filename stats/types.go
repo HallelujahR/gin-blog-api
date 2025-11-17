@@ -41,3 +41,9 @@ type StatsResult struct {
 	RegionDistribution []RegionStat `json:"region_distribution"`
 	GeneratedAt        time.Time    `json:"generated_at"`
 }
+
+// VisitSummary 汇总数据库中的访问和热门文章信息。
+type VisitSummary struct {
+	TotalVisits int
+	TopPosts    []TopPost
+}
