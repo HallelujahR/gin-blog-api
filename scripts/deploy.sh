@@ -25,7 +25,7 @@ LOG_DIR="$PROJECT_ROOT/logs"
 ENV_FILE="$PROJECT_ROOT/.env"
 
 # 前端与 Nginx 相关配置，可通过环境变量覆盖
-FRONTEND_DIR="${FRONTEND_DIR:-/opt/blog/gin-blog-vue-font}"
+FRONTEND_DIR="${FRONTEND_DIR:-/www/wwwroot/blog/gin-blog-vue-font}"
 FRONTEND_DIST="$FRONTEND_DIR/dist"
 NGINX_CONF_FILE="${NGINX_CONF_FILE:-/etc/nginx/conf.d/blog.conf}"
 NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-_}"

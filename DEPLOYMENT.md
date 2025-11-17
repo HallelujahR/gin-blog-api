@@ -13,7 +13,7 @@
 - Nginx：1.20+（或你熟悉的稳定版本）
 - Git、Make、gcc、tzdata 等基础工具
 
-> 建议以 `/opt/blog/api` 作为后端目录，前端代码仍位于 `/opt/blog/gin-blog-vue-font`。
+> 建议以 `/www/wwwroot/blog/api` 作为后端目录，前端代码位于 `/www/wwwroot/blog/gin-blog-vue-font`。
 
 ---
 
@@ -70,8 +70,8 @@ redis-cli ping   # 返回 PONG 代表正常
 
 ## 4. 拉取代码并配置环境
 ```bash
-sudo mkdir -p /opt/blog
-cd /opt/blog
+sudo mkdir -p /www/wwwroot/blog
+cd /www/wwwroot/blog
 git clone https://github.com/your-org/gin-blog-api.git api
 cd api
 cp env.template .env
@@ -118,9 +118,9 @@ After=network.target mysql.service redis.service
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/blog/api
-EnvironmentFile=/opt/blog/api/.env
-ExecStart=/opt/blog/api/bin/api
+WorkingDirectory=/www/wwwroot/blog/api
+EnvironmentFile=/www/wwwroot/blog/api/.env
+ExecStart=/www/wwwroot/blog/api/bin/api
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65535
@@ -140,9 +140,9 @@ sudo systemctl status blog-api
 
 ## 6. 前端与 Nginx
 
-前端代码位于 `/opt/blog/gin-blog-vue-font`：
+前端代码位于 `/www/wwwroot/blog/gin-blog-vue-font`：
 ```bash
-cd /opt/blog/gin-blog-vue-font
+cd /www/wwwroot/blog/gin-blog-vue-font
 npm ci
 npm run build
 ```
@@ -152,7 +152,7 @@ Nginx 示例（`/etc/nginx/conf.d/blog.conf`）：
 server {
     listen 80;
     server_name example.com;
-    root /opt/blog/gin-blog-vue-font/dist;
+    root /www/wwwroot/blog/gin-blog-vue-font/dist;
 
     location / {
         try_files $uri $uri/ /index.html;
@@ -180,7 +180,7 @@ a- `uploads/`：图片、附件
 
 日志轮转：可使用 `logrotate`，示例 `/etc/logrotate.d/blog-api`：
 ```
-/opt/blog/api/logs/*_log {
+/www/wwwroot/blog/api/logs/*_log {
     daily
     rotate 30
     missingok
@@ -193,7 +193,7 @@ a- `uploads/`：图片、附件
 
 ## 8. 更新与回滚
 ```bash
-cd /opt/blog/api
+cd /www/wwwroot/blog/api
 git pull
 ./bin/api --version   # 可自定义版本命令
 # 重新编译

@@ -66,9 +66,9 @@ After=network.target mysql.service redis.service
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/blog/api
-EnvironmentFile=/opt/blog/api/.env
-ExecStart=/opt/blog/api/bin/api
+WorkingDirectory=/www/wwwroot/blog/api
+EnvironmentFile=/www/wwwroot/blog/api/.env
+ExecStart=/www/wwwroot/blog/api/bin/api
 Restart=on-failure
 
 [Install]
@@ -81,13 +81,13 @@ sudo systemctl enable --now blog-api
 ```
 
 ## 5. 前端与 Nginx（示例）
-1. 在 `/opt/blog/gin-blog-vue-font` 拉取前端代码并执行 `npm ci && npm run build`。
+1. 在 `/www/wwwroot/blog/gin-blog-vue-font` 拉取前端代码并执行 `npm ci && npm run build`。
 2. 配置 Nginx：
 ```nginx
 server {
     listen 80;
     server_name example.com;
-    root /opt/blog/gin-blog-vue-font/dist;
+    root /www/wwwroot/blog/gin-blog-vue-font/dist;
 
     location / {
         try_files $uri $uri/ /index.html;
@@ -111,8 +111,9 @@ server {
 
 ## 7. 更新代码
 ```bash
-cd /opt/blog/api
+cd /www/wwwroot/blog/api
 git pull
 go build -o bin/api ./
 sudo systemctl restart blog-api
+sudo systemctl reload nginx
 ```
