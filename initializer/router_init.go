@@ -6,14 +6,25 @@ import (
 	adminRoutes "api/routes/admin"
 	"api/service"
 	"fmt"
+	"io"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func InitRouter() *gin.Engine {
+	// 初始化访问日志，失败时仅记录警告信息
+	if writer, path, err := service.InitAccessLog(); err != nil {
+		fmt.Fprintf(gin.DefaultErrorWriter, "警告: 访问日志初始化失败(%s): %v\n", path, err)
+	} else if writer != nil {
+		gin.DefaultWriter = io.MultiWriter(gin.DefaultWriter, writer)
+	}
+
 	r := gin.Default()
 	// 跨域中间件：允许全部开发请求，支持Authorization头
 	r.Use(middleware.CORSMiddleware())
+	// 全局限流，防止恶意请求
+	r.Use(middleware.RateLimitMiddleware(120, time.Minute))
 
 	// 初始化上传目录
 	if err := service.InitUploadDirs(); err != nil {
@@ -34,6 +45,7 @@ func InitRouter() *gin.Engine {
 	routes.RegisterLikeRoutes(r)
 	routes.RegisterPageRoutes(r)
 	routes.RegisterHotDataRoutes(r)
+	routes.RegisterStatsRoutes(r)
 
 	// ========== 后台管理API（需要管理员权限）==========
 	adminRoutes.RegisterAdminUserRoutes(r)

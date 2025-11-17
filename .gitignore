@@ -51,3 +51,6 @@ temp/
 docker-package*.tar.gz
 packages/
 
+# 数据文件
+data/
+

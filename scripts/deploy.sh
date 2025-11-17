@@ -46,6 +46,13 @@ EOF
     systemctl restart docker || true
 fi
 
+# 检查地理位置数据库存在（用于地区统计）
+DATA_DIR="./data"
+GEO_DB_FILE="$DATA_DIR/GeoLite2-City.mmdb"
+if [ ! -f "$GEO_DB_FILE" ]; then
+    echo "⚠️ 未找到 GeoLite2-City.mmdb，请将官方 mmdb 文件放置到 $GEO_DB_FILE"
+fi
+
 # 检查必需的Docker镜像是否存在
 echo "🔍 检查必需的Docker镜像..."
 REQUIRED_IMAGES=(
@@ -72,7 +79,7 @@ if [ ${#MISSING_IMAGES[@]} -gt 0 ]; then
     for img in "${MISSING_IMAGES[@]}"; do
         echo "   - $img"
     done
-    echo ""
+echo ""
     echo "💡 提示: 如果已有镜像包，请先加载："
     echo "   docker load -i <镜像包路径>"
     exit 1

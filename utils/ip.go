@@ -27,4 +27,3 @@ func GetClientIP(c *gin.Context) string {
 	}
 	return ip
 }
-
