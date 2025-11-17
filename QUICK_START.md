@@ -1,168 +1,118 @@
-# 快速部署指南
+# 快速启动（无 Docker）
 
-本文档说明如何使用服务器上的本地镜像快速部署 Golang 博客系统。
+本文档介绍如何在直接安装的 MySQL、Redis、Nginx 环境中部署 Golang 博客 API。
 
-## 前提条件
+## 1. 系统要求
+- Linux x86_64（建议 Ubuntu 20.04+/CentOS 7+/RockyLinux 8+）
+- Go 1.25+
+- Node.js 18+（仅在需要构建前端时）
+- MySQL 8.0.44
+- Redis 6+/7+
+- Nginx（用于反向代理和前端静态资源）
 
-服务器上需要已安装以下 Docker 镜像：
-
-- `docker.1ms.run/library/golang:latest`
-- `docker.1ms.run/library/mysql:8.0.44`
-- `docker.1ms.run/library/nginx:latest`
-- `docker.1ms.run/library/node:latest` (可选，用于前端构建)
-
-## 快速部署步骤
-
-### 1. 检查镜像是否存在
-
+## 2. 准备数据库与 Redis
 ```bash
-docker images | grep "docker.1ms.run/library"
+sudo systemctl enable --now mysqld   # 或 mariadb
+sudo systemctl enable --now redis
 ```
 
-应该看到以下镜像：
-- docker.1ms.run/library/golang:latest
-- docker.1ms.run/library/mysql:8.0.44
-- docker.1ms.run/library/nginx:latest
-- docker.1ms.run/library/node:latest
-
-### 2. 准备环境配置
-
+初始化数据库账号（可根据需要修改密码）：
 ```bash
-# 从模板创建.env文件
-cp env.template .env
+mysql -uroot -p <<'SQL'
+CREATE DATABASE IF NOT EXISTS blog CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'blog_user'@'%' IDENTIFIED BY 'blog_password';
+GRANT ALL ON blog.* TO 'blog_user'@'%';
+FLUSH PRIVILEGES;
+SQL
+```
 
-# 编辑配置文件
+如果需要删除 `likes` 表的外键，可执行 `database/sql/fix_likes_foreign_key.sql`。
+
+## 3. 配置环境变量
+```bash
+cp env.template .env
 vi .env
 ```
-
-配置示例：
-```env
-DB_HOST=mysql
+关键变量：
+```
+DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=blog_user
-DB_PASSWORD=your_password
+DB_PASSWORD=blog_password
 DB_NAME=blog
-MYSQL_ROOT_PASSWORD=root_password
-API_BASE_URL=http://your-domain.com
 BLOG_ENV=prod
+API_BASE_URL=https://your-domain.com
+REDIS_ADDR=127.0.0.1:6379
 ```
 
-### 3. 执行部署
-
+加载 `.env`（可写入 `/etc/profile.d/blog.sh`）：
 ```bash
-# 生产环境部署
-sudo ./scripts/deploy.sh production
-
-# 或开发环境部署
-sudo ./scripts/deploy.sh development
+export $(grep -v '^#' .env | xargs)
 ```
 
-部署脚本会自动：
-1. 检查 Docker 和 Docker Compose
-2. 检查必需的镜像是否存在
-3. 检查环境配置文件
-4. 停止旧容器
-5. 构建应用镜像（使用本地基础镜像）
-6. 启动所有服务
-
-### 4. 验证部署
-
+## 4. 启动后端 API
 ```bash
-# 查看服务状态
-docker compose -f docker-compose.prod.yml ps
-
-# 查看日志
-docker compose -f docker-compose.prod.yml logs -f
-
-# 测试API
-curl http://localhost:8080/health
+go mod download
+go build -o bin/api ./
+./bin/api
 ```
 
-## 镜像打包（可选）
+推荐使用 systemd 管理：
+```ini
+# /etc/systemd/system/blog-api.service
+[Unit]
+Description=Blog API (Go)
+After=network.target mysql.service redis.service
 
-如果需要将镜像打包到其他服务器：
+[Service]
+Type=simple
+WorkingDirectory=/opt/blog/api
+EnvironmentFile=/opt/blog/api/.env
+ExecStart=/opt/blog/api/bin/api
+Restart=on-failure
 
+[Install]
+WantedBy=multi-user.target
+```
+启用：
 ```bash
-# 打包所有镜像
-./scripts/package.sh
-
-# 会生成 docker-images.tar.gz 文件
+sudo systemctl daemon-reload
+sudo systemctl enable --now blog-api
 ```
 
-在其他服务器上加载镜像：
+## 5. 前端与 Nginx（示例）
+1. 在 `/opt/blog/gin-blog-vue-font` 拉取前端代码并执行 `npm ci && npm run build`。
+2. 配置 Nginx：
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+    root /opt/blog/gin-blog-vue-font/dist;
 
-```bash
-# 解压镜像包
-tar -xzf docker-images.tar.gz
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
 
-# 加载镜像
-cd docker-package/images
-for image in *.tar; do
-    docker load -i "$image"
-done
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
 ```
+3. 重新加载 Nginx：`sudo nginx -s reload`。
 
-## 常用命令
+## 6. 常见问题
+- **端口占用**：`ss -tlnp | grep 8080` 并停止冲突进程。
+- **数据库连接失败**：检查 `.env` 是否加载，`mysql -h127.0.0.1 -ublog_user -p` 能否登录。
+- **Redis 连接失败**：确认 `redis-cli ping` 返回 `PONG`。
+- **日志位置**：所有访问日志写入 `logs/YYYY-MM-DD_log`，启动程序即可自动创建，无需手动 `touch`。
 
+## 7. 更新代码
 ```bash
-# 查看服务状态
-docker compose -f docker-compose.prod.yml ps
-
-# 查看日志
-docker compose -f docker-compose.prod.yml logs -f api
-docker compose -f docker-compose.prod.yml logs -f mysql
-
-# 重启服务
-docker compose -f docker-compose.prod.yml restart
-
-# 停止服务
-docker compose -f docker-compose.prod.yml down
-
-# 更新代码后重新部署
+cd /opt/blog/api
 git pull
-sudo ./scripts/deploy.sh production
+go build -o bin/api ./
+sudo systemctl restart blog-api
 ```
-
-## 故障排查
-
-### 镜像不存在
-
-如果提示镜像不存在，请先加载镜像：
-
-```bash
-# 如果有镜像包
-docker load -i <镜像包路径>
-
-# 或从镜像源拉取（如果网络允许）
-docker pull docker.1ms.run/library/golang:latest
-docker pull docker.1ms.run/library/mysql:8.0.44
-docker pull docker.1ms.run/library/nginx:latest
-```
-
-### 端口被占用
-
-```bash
-# 检查端口占用
-netstat -tlnp | grep 8080
-netstat -tlnp | grep 3306
-
-# 停止占用端口的服务或修改 docker-compose.yml 中的端口映射
-```
-
-### 数据库连接失败
-
-```bash
-# 检查MySQL容器日志
-docker logs blog-mysql
-
-# 检查.env文件中的数据库配置是否正确
-cat .env | grep DB_
-```
-
-## 注意事项
-
-1. 所有脚本使用 `pull_policy: never`，确保只使用本地镜像
-2. 构建时使用 `--pull=false`，不会尝试拉取新镜像
-3. 确保服务器有足够的磁盘空间和内存
-4. 生产环境请使用强密码
-

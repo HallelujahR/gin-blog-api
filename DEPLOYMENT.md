@@ -1,549 +1,225 @@
-# 博客系统部署文档
+# 部署说明（无 Docker 版本）
 
-本文档详细说明如何在Linux系统上使用Docker完成博客系统的自动化部署。
-
-## 系统要求
-
-- Linux操作系统（推荐Ubuntu 20.04+ 或 CentOS 7+）
-- Docker 20.10+
-- Docker Compose 2.0+
-- 至少2GB可用内存
-- 至少10GB可用磁盘空间
-
-## 架构说明
-
-系统采用前后端分离架构：
-
-- **后端**: Golang API服务（端口8080）
-- **前端**: Vue.js应用，通过Nginx提供服务（端口80/443）
-- **数据库**: MySQL 8.0（端口3306）
-
-所有服务通过Docker容器运行，使用镜像加速器加速镜像拉取。
-
-## 部署步骤
-
-### 第一步：安装Docker和Docker Compose
-
-#### Ubuntu/Debian系统
-
-```bash
-# 更新系统包
-sudo apt-get update
-
-# 安装必要的依赖
-sudo apt-get install -y ca-certificates curl gnupg lsb-release
-
-# 添加Docker官方GPG密钥
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-# 设置Docker仓库
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# 安装Docker Engine和Docker Compose
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# 启动Docker服务
-sudo systemctl start docker
-sudo systemctl enable docker
-
-# 验证安装
-docker --version
-docker compose version
-```
-
-#### CentOS/RHEL系统
-
-```bash
-# 安装必要的依赖
-sudo yum install -y yum-utils
-
-# 添加Docker仓库
-sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-
-# 安装Docker Engine和Docker Compose
-sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-# 启动Docker服务
-sudo systemctl start docker
-sudo systemctl enable docker
-
-# 验证安装
-docker --version
-docker compose version
-```
-
-### 第二步：配置Docker镜像加速器
-
-为了加快镜像拉取速度，配置镜像加速器：
-
-```bash
-# 创建Docker配置目录
-sudo mkdir -p /etc/docker
-
-# 配置镜像加速器
-sudo tee /etc/docker/daemon.json <<EOF
-{
-  "registry-mirrors": [
-    "https://docker.1ms.run/library"
-  ],
-  "max-concurrent-downloads": 10,
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  }
-}
-EOF
-
-# 重启Docker服务
-sudo systemctl daemon-reload
-sudo systemctl restart docker
-```
-
-### 第三步：准备项目文件
-
-#### 3.1 克隆或上传项目代码
-
-```bash
-# 方式1: 使用Git克隆
-git clone <your-repo-url> /opt/blog
-cd /opt/blog/api
-
-# 方式2: 上传项目文件到服务器
-# 使用scp或FTP工具上传项目文件到服务器
-```
-
-#### 3.2 配置环境变量
-
-```bash
-# 从模板创建.env文件
-cp env.template .env
-
-# 编辑.env文件，配置数据库等信息
-vi .env
-```
-
-`.env`文件配置示例：
-
-```env
-# 数据库配置
-DB_HOST=mysql
-DB_PORT=3306
-DB_USER=blog_user
-DB_PASSWORD=your_secure_password
-DB_NAME=blog
-
-# MySQL Root密码
-MYSQL_ROOT_PASSWORD=your_root_password
-
-# API基础URL（用于生成图片完整URL）
-API_BASE_URL=http://your-domain.com
-
-# 环境标识
-BLOG_ENV=prod
-```
-
-**重要提示**：
-- 生产环境请使用强密码
-- `API_BASE_URL`应设置为实际的域名或IP地址
-- 确保密码安全，不要将`.env`文件提交到Git仓库
-
-### 第四步：准备前端文件
-
-确保Vue前端项目已经构建完成：
-
-```bash
-# 在前端项目目录中构建
-cd /path/to/front
-npm install
-npm run build
-
-# 构建完成后，dist目录应该在 ../front/dist
-```
-
-如果前端文件不在`../front/dist`目录，需要修改`docker-compose.yml`中的前端挂载路径。
-
-### 第五步：执行部署
-
-#### 方式1：直接部署（推荐，自动拉取镜像）
-
-```bash
-# 进入项目目录
-cd /opt/blog/api
-
-# 运行部署脚本
-sudo ./scripts/deploy.sh production
-```
-
-部署脚本会自动：
-1. 检查Docker和Docker Compose
-2. 配置Docker镜像加速器
-3. 检查环境配置文件
-4. 停止旧容器
-5. 构建后端镜像
-6. 启动所有服务
-
-#### 方式2：离线部署（使用预打包的镜像）
-
-如果服务器网络受限，可以预先打包镜像：
-
-**在本地或网络良好的机器上：**
-
-```bash
-# 运行打包脚本
-./scripts/package.sh
-
-# 脚本会生成 docker-images.tar.gz 文件
-```
-
-**在服务器上：**
-
-```bash
-# 上传镜像包到服务器
-scp docker-images.tar.gz user@server:/opt/blog/api/
-
-# 在服务器上加载镜像
-cd /opt/blog/api
-tar -xzf docker-images.tar.gz
-cd docker-package/images
-for image in *.tar; do
-    docker load -i "$image"
-done
-cd ../../
-
-# 运行部署脚本
-sudo ./scripts/deploy.sh production
-```
-
-### 第六步：验证部署
-
-#### 6.1 检查服务状态
-
-```bash
-# 查看所有容器状态
-docker compose -f docker-compose.prod.yml ps
-
-# 应该看到三个容器都在运行：
-# - blog-mysql
-# - blog-api
-# - blog-frontend
-```
-
-#### 6.2 查看服务日志
-
-```bash
-# 查看所有服务日志
-docker compose -f docker-compose.prod.yml logs -f
-
-# 查看特定服务日志
-docker compose -f docker-compose.prod.yml logs -f api
-docker compose -f docker-compose.prod.yml logs -f mysql
-docker compose -f docker-compose.prod.yml logs -f frontend
-```
-
-#### 6.3 测试服务
-
-```bash
-# 测试API服务
-curl http://localhost:8080/health
-
-# 测试前端服务
-curl http://localhost
-
-# 测试数据库连接
-docker exec -it blog-mysql mysql -u blog_user -p -e "SHOW DATABASES;"
-```
-
-### 第七步：配置Nginx（可选）
-
-如果需要配置HTTPS或自定义Nginx配置：
-
-```bash
-# 创建Nginx配置目录（如果不存在）
-mkdir -p docker/nginx/conf.d
-
-# 创建自定义Nginx配置
-vi docker/nginx/conf.d/default.conf
-```
-
-Nginx配置示例：
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # 前端静态文件
-    location / {
-        root /usr/share/nginx/html;
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API代理
-    location /api {
-        proxy_pass http://api:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # 上传文件访问
-    location /uploads {
-        proxy_pass http://api:8080;
-        proxy_set_header Host $host;
-    }
-}
-```
-
-配置完成后，重启前端服务：
-
-```bash
-docker compose -f docker-compose.prod.yml restart frontend
-```
-
-## 常用操作命令
-
-### 查看服务状态
-
-```bash
-docker compose -f docker-compose.prod.yml ps
-```
-
-### 查看日志
-
-```bash
-# 查看所有服务日志
-docker compose -f docker-compose.prod.yml logs -f
-
-# 查看最近100行日志
-docker compose -f docker-compose.prod.yml logs --tail=100
-
-# 查看特定服务日志
-docker compose -f docker-compose.prod.yml logs -f api
-```
-
-### 重启服务
-
-```bash
-# 重启所有服务
-docker compose -f docker-compose.prod.yml restart
-
-# 重启特定服务
-docker compose -f docker-compose.prod.yml restart api
-```
-
-### 停止服务
-
-```bash
-docker compose -f docker-compose.prod.yml down
-```
-
-### 更新部署
-
-```bash
-# 拉取最新代码
-git pull origin main
-
-# 重新构建并启动
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-### 进入容器
-
-```bash
-# 进入API容器
-docker exec -it blog-api /bin/bash
-
-# 进入MySQL容器
-docker exec -it blog-mysql mysql -u root -p
-
-# 进入前端容器
-docker exec -it blog-frontend /bin/bash
-```
-
-### 备份数据库
-
-```bash
-# 备份数据库
-docker exec blog-mysql mysqldump -u root -p${MYSQL_ROOT_PASSWORD} blog > backup_$(date +%Y%m%d_%H%M%S).sql
-
-# 恢复数据库
-docker exec -i blog-mysql mysql -u root -p${MYSQL_ROOT_PASSWORD} blog < backup.sql
-```
-
-## 故障排查
-
-### 问题1：容器无法启动
-
-**检查方法：**
-
-```bash
-# 查看容器日志
-docker compose -f docker-compose.prod.yml logs
-
-# 查看容器状态
-docker compose -f docker-compose.prod.yml ps -a
-```
-
-**常见原因：**
-- 环境变量配置错误
-- 端口被占用
-- 磁盘空间不足
-- 内存不足
-
-### 问题2：数据库连接失败
-
-**检查方法：**
-
-```bash
-# 检查MySQL容器是否运行
-docker ps | grep mysql
-
-# 检查MySQL日志
-docker logs blog-mysql
-
-# 测试数据库连接
-docker exec -it blog-mysql mysql -u blog_user -p -e "SELECT 1;"
-```
-
-**解决方案：**
-- 确认`.env`文件中的数据库配置正确
-- 等待MySQL完全启动（首次启动需要初始化）
-- 检查网络连接
-
-### 问题3：API服务无法访问
-
-**检查方法：**
-
-```bash
-# 检查API容器日志
-docker logs blog-api
-
-# 检查API容器是否运行
-docker ps | grep api
-
-# 测试API端点
-curl http://localhost:8080/health
-```
-
-**解决方案：**
-- 检查端口是否被占用：`netstat -tlnp | grep 8080`
-- 查看API日志找出错误原因
-- 确认数据库连接正常
-
-### 问题4：前端页面无法访问
-
-**检查方法：**
-
-```bash
-# 检查前端容器日志
-docker logs blog-frontend
-
-# 检查前端文件是否存在
-docker exec blog-frontend ls -la /usr/share/nginx/html
-```
-
-**解决方案：**
-- 确认前端构建文件在正确位置
-- 检查Nginx配置是否正确
-- 确认端口80/443未被占用
-
-### 问题5：镜像拉取失败
-
-**解决方案：**
-
-```bash
-# 检查Docker镜像加速器配置
-cat /etc/docker/daemon.json
-
-# 重启Docker服务
-sudo systemctl restart docker
-
-# 手动拉取镜像
-docker pull golang:latest
-```
-
-## 性能优化建议
-
-### 1. 数据库优化
-
-```bash
-# 在docker-compose.prod.yml中添加MySQL配置
-command: >
-  --default-authentication-plugin=mysql_native_password
-  --character-set-server=utf8mb4
-  --collation-server=utf8mb4_unicode_ci
-  --innodb-buffer-pool-size=1G
-  --max-connections=500
-```
-
-### 2. 资源限制
-
-在`docker-compose.prod.yml`中为服务添加资源限制：
-
-```yaml
-services:
-  api:
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
-```
-
-### 3. 日志管理
-
-定期清理Docker日志：
-
-```bash
-# 清理所有停止的容器
-docker container prune -f
-
-# 清理未使用的镜像
-docker image prune -a -f
-
-# 清理未使用的卷
-docker volume prune -f
-```
-
-## 安全建议
-
-1. **使用强密码**：生产环境必须使用强密码
-2. **限制端口访问**：使用防火墙限制数据库端口（3306）的外部访问
-3. **定期更新**：定期更新Docker镜像和系统补丁
-4. **备份数据**：定期备份数据库和上传的文件
-5. **HTTPS配置**：生产环境建议配置HTTPS证书
-
-## 维护计划
-
-### 日常维护
-
-- 每日检查服务状态
-- 每周查看日志文件
-- 每月备份数据库
-
-### 定期维护
-
-- 每季度更新Docker镜像
-- 每半年审查安全配置
-- 每年更新系统依赖
-
-## 技术支持
-
-如遇到问题，请：
-
-1. 查看本文档的故障排查部分
-2. 检查服务日志
-3. 查看项目Issue或联系技术支持
+本指南介绍如何在常规 Linux 服务器上，使用系统自带的 MySQL、Redis、Nginx 等服务部署本博客系统。所有步骤均基于直接安装的软件包，不再依赖 Docker 或容器脚本。
 
 ---
 
-**最后更新**: 2024年
+## 1. 系统要求
+- 操作系统：Ubuntu 20.04+/Debian 11+/CentOS 7+/RockyLinux 8+
+- Golang：1.25+
+- Node.js：18+（仅当需要在服务器上构建前端时）
+- MySQL：8.0.44（与开发环境一致）
+- Redis：6+/7+
+- Nginx：1.20+（或你熟悉的稳定版本）
+- Git、Make、gcc、tzdata 等基础工具
+
+> 建议以 `/opt/blog/api` 作为后端目录，前端代码仍位于 `/opt/blog/gin-blog-vue-font`。
+
+---
+
+## 2. 系统依赖安装
+
+以 Ubuntu 为例：
+```bash
+sudo apt update
+sudo apt install -y build-essential git curl nginx redis-server mysql-server
+```
+
+安装 Go 1.25：
+```bash
+wget https://go.dev/dl/go1.25.0.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
+cat <<'PROFILE' | sudo tee /etc/profile.d/go.sh
+export PATH=$PATH:/usr/local/go/bin
+PROFILE
+source /etc/profile.d/go.sh
+```
+
+> 如果你已经通过其他方式安装，确保 `go version` 输出 1.25 及以上即可。
+
+---
+
+## 3. 数据库与 Redis 准备
+
+### 3.1 初始化 MySQL
+```bash
+sudo systemctl enable --now mysql
+mysql_secure_installation   # 根据提示设置 root 密码
+```
+
+创建业务库与账号（可按需调整密码）：
+```bash
+mysql -uroot -p <<'SQL'
+CREATE DATABASE IF NOT EXISTS blog CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'blog_user'@'%' IDENTIFIED BY 'blog_password';
+GRANT ALL PRIVILEGES ON blog.* TO 'blog_user'@'%';
+FLUSH PRIVILEGES;
+SQL
+```
+
+如需取消 `likes` 表的外键限制，可执行 `database/sql/fix_likes_foreign_key.sql`。
+
+### 3.2 Redis
+```bash
+sudo systemctl enable --now redis-server
+redis-cli ping   # 返回 PONG 代表正常
+```
+
+---
+
+## 4. 拉取代码并配置环境
+```bash
+sudo mkdir -p /opt/blog
+cd /opt/blog
+git clone https://github.com/your-org/gin-blog-api.git api
+cd api
+cp env.template .env
+vi .env
+```
+
+典型 `.env` 设置：
+```
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=blog_user
+DB_PASSWORD=blog_password
+DB_NAME=blog
+BLOG_ENV=prod
+API_BASE_URL=https://api.example.com
+REDIS_ADDR=127.0.0.1:6379
+```
+
+> 建议将 `.env` 路径写入 systemd 的 `EnvironmentFile`，而不是导出到全局 profile。
+
+同步依赖与构建：
+```bash
+go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
+go mod download
+go build -o bin/api ./
+```
+
+---
+
+## 5. 运行后端服务
+
+### 5.1 开发/调试
+```bash
+BLOG_ENV=dev go run main.go
+```
+日志写入 `logs/YYYY-MM-DD_log`，程序会自动创建目录与文件。
+
+### 5.2 systemd 服务（推荐）
+创建 `/etc/systemd/system/blog-api.service`：
+```ini
+[Unit]
+Description=Blog API Service
+After=network.target mysql.service redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/blog/api
+EnvironmentFile=/opt/blog/api/.env
+ExecStart=/opt/blog/api/bin/api
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用：
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now blog-api
+sudo systemctl status blog-api
+```
+
+---
+
+## 6. 前端与 Nginx
+
+前端代码位于 `/opt/blog/gin-blog-vue-font`：
+```bash
+cd /opt/blog/gin-blog-vue-font
+npm ci
+npm run build
+```
+
+Nginx 示例（`/etc/nginx/conf.d/blog.conf`）：
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+    root /opt/blog/gin-blog-vue-font/dist;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+如需 HTTPS，为该 server block 配置证书（`listen 443 ssl;` + `ssl_certificate` 等）。
+
+> 前端访问 API 时请使用相对路径 `/api`，避免写死 `localhost`。
+
+---
+
+## 7. 目录结构与日志
+- `logs/YYYY-MM-DD_log`：Gin 访问日志，程序自动滚动
+a- `uploads/`：图片、附件
+- `database/sql/`：常用 SQL 脚本
+
+日志轮转：可使用 `logrotate`，示例 `/etc/logrotate.d/blog-api`：
+```
+/opt/blog/api/logs/*_log {
+    daily
+    rotate 30
+    missingok
+    compress
+    notifempty
+}
+```
+
+---
+
+## 8. 更新与回滚
+```bash
+cd /opt/blog/api
+git pull
+./bin/api --version   # 可自定义版本命令
+# 重新编译
+go build -o bin/api ./
+sudo systemctl restart blog-api
+```
+
+回滚只需切换到旧 tag 并重新编译。
+
+---
+
+## 9. 故障排查
+
+| 问题 | 排查要点 |
+| --- | --- |
+| API 无法启动 | `journalctl -u blog-api -xe`、确认 `.env` 加载、数据库可连接 |
+| Redis 连接失败 | `redis-cli -h 127.0.0.1 ping`、检查 `REDIS_ADDR` |
+| 前端 404 | 检查 Nginx `root` 和前端 `dist` 是否存在，`try_files` 是否正确 |
+| `/api` 请求 404 | 确认 Nginx `proxy_pass http://127.0.0.1:8080;`，不要额外拼 `/api` 路径 |
+| 日志缺失 | 确保运行用户对 `logs/` 目录有写权限 |
+
+---
+
+## 10. 附录
+- `database/sql/init.sql`：示例用户/权限初始化
+- `database/sql/fix_likes_foreign_key.sql`：移除 `likes` 外键
+- 如果需要自动化部署，可自行编写 shell/systemd 单元，但不再提供 Docker 相关脚本
+
+至此，服务器上的 Redis、MySQL、Nginx 均以系统服务运行，后端直接以二进制方式部署，满足“去 Docker 化”的要求。

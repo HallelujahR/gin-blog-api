@@ -5,3 +5,6 @@
 -- 示例：创建数据库（如果不存在）
 -- CREATE DATABASE IF NOT EXISTS blog CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+CREATE USER IF NOT EXISTS 'blog_user'@'%' IDENTIFIED BY '10244201';
+ALTER USER 'blog_user'@'%' IDENTIFIED WITH mysql_native_password BY '10244201';
+

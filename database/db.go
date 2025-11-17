@@ -43,13 +43,16 @@ func getDSN() string {
 
 		// 设置默认值
 		if dbHost == "" {
-			dbHost = "mysql"
+			dbHost = "127.0.0.1"
 		}
 		if dbPort == "" {
 			dbPort = "3306"
 		}
 		if dbUser == "" {
-			dbUser = "root"
+			dbUser = "blog_user"
+		}
+		if dbPassword == "" {
+			dbPassword = "blog_password"
 		}
 		if dbName == "" {
 			dbName = "blog"
