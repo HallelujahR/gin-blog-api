@@ -97,9 +97,6 @@ if [ ! -f .env ]; then
     fi
 fi
 
-# 停止旧容器
-echo "🛑 停止旧容器..."
-$COMPOSE_CMD -f $COMPOSE_FILE down || true
 
 # 清理悬空镜像（<none>）
 echo "🧹 清理悬空镜像(<none>)..."
@@ -109,6 +106,11 @@ if [ -n "$dangling_images" ]; then
 else
     echo "ℹ️ 没有需要清理的悬空镜像"
 fi
+
+# 停止旧容器
+echo "🛑 停止旧容器..."
+$COMPOSE_CMD -f $COMPOSE_FILE down || true
+
 
 # 构建镜像（使用本地基础镜像）
 echo "🔨 构建Docker镜像..."
