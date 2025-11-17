@@ -24,6 +24,15 @@ BINARY_PATH="$BIN_DIR/api"
 LOG_DIR="$PROJECT_ROOT/logs"
 ENV_FILE="$PROJECT_ROOT/.env"
 
+# 前端与 Nginx 相关配置，可通过环境变量覆盖
+FRONTEND_DIR="${FRONTEND_DIR:-/opt/blog/gin-blog-vue-font}"
+FRONTEND_DIST="$FRONTEND_DIR/dist"
+NGINX_CONF_FILE="${NGINX_CONF_FILE:-/etc/nginx/conf.d/blog.conf}"
+NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-_}"
+API_INTERNAL_HOST="${API_INTERNAL_HOST:-127.0.0.1}"
+API_INTERNAL_PORT="${API_INTERNAL_PORT:-8080}"
+API_INTERNAL_URL="http://${API_INTERNAL_HOST}:${API_INTERNAL_PORT}"
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -33,7 +42,7 @@ error() { echo -e "\033[1;31m[ERR ]\033[0m $*"; }
 
 die() {
   error "$*"
-  exit 1
+    exit 1
 }
 
 require_root() {
@@ -45,7 +54,10 @@ require_root() {
 check_prerequisites() {
   command -v go >/dev/null 2>&1 || die "未检测到 go，请先安装 Go 1.25+"
   command -v systemctl >/dev/null 2>&1 || die "当前系统不支持 systemd"
+  command -v npm >/dev/null 2>&1 || die "未检测到 npm，请先安装 Node.js 18+"
+  command -v nginx >/dev/null 2>&1 || die "未检测到 nginx，请先安装 Nginx"
   [[ -f "$ENV_FILE" ]] || die "未找到 .env，请先根据 env.template 创建"
+  [[ -d "$FRONTEND_DIR" ]] || die "未找到前端目录 $FRONTEND_DIR"
 }
 
 ensure_dirs() {
@@ -96,13 +108,67 @@ reload_service() {
   systemctl status "$SERVICE_NAME" --no-pager
 }
 
+build_frontend() {
+  log "构建前端 ($FRONTEND_DIR)..."
+  if [[ ! -d "$FRONTEND_DIR" ]]; then
+    die "前端目录 $FRONTEND_DIR 不存在，无法构建"
+  fi
+  pushd "$FRONTEND_DIR" >/dev/null
+  if [[ -f package-lock.json ]]; then
+    npm ci
+  else
+    npm install
+  fi
+  npm run build
+  popd >/dev/null
+  if [[ ! -d "$FRONTEND_DIST" ]]; then
+    die "前端构建失败，未找到 $FRONTEND_DIST"
+  fi
+  log "前端构建完成，输出目录 $FRONTEND_DIST"
+}
+
+write_nginx_conf() {
+  log "更新 Nginx 配置 $NGINX_CONF_FILE"
+  cat <<NGINX | tee "$NGINX_CONF_FILE" >/dev/null
+server {
+    listen 80;
+    server_name $NGINX_SERVER_NAME;
+    root $FRONTEND_DIST;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass $API_INTERNAL_URL;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_http_version 1.1;
+    }
+}
+NGINX
+
+  log "检测 Nginx 配置"
+  nginx -t
+  log "重新加载 Nginx"
+  systemctl reload nginx
+}
+
+deploy_frontend_stack() {
+  build_frontend
+  write_nginx_conf
+}
+
 case "$COMMAND" in
   build)
     require_root
     check_prerequisites
     ensure_dirs
     build_binary
-    log "仅构建完成，如需启动请执行 sudo systemctl restart $SERVICE_NAME"
+    build_frontend
+    log "仅构建完成，如需启动请执行 sudo systemctl restart $SERVICE_NAME && sudo systemctl reload nginx"
     ;;
   restart)
     require_root
@@ -114,6 +180,7 @@ case "$COMMAND" in
     fi
     write_service_file
     reload_service
+    deploy_frontend_stack
     ;;
   deploy|*)
     require_root
@@ -122,6 +189,7 @@ case "$COMMAND" in
     build_binary
     write_service_file
     reload_service
+    deploy_frontend_stack
     ;;
 esac
 
