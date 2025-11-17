@@ -37,7 +37,7 @@ error() { echo -e "\033[1;31m[ERR ]\033[0m $*"; }
 
 die() {
   error "$*"
-    exit 1
+  exit 1
 }
 
 require_root() {
@@ -121,7 +121,6 @@ build_frontend() {
   log "前端构建完成，输出目录 $FRONTEND_DIST"
 }
 
-write_nginx_conf() {
 deploy_frontend_stack() {
   build_frontend
 }
