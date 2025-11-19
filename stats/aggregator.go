@@ -17,9 +17,12 @@ func Aggregate(entries []LogEntry, summary VisitSummary) StatsResult {
 		if entry.IP != "" {
 			visitorSet[entry.IP] = struct{}{}
 		}
-		if region, ok := normalizeRegion(entry.Region, entry.IP); ok {
-			regionCount[region]++
-			totalRegionEntries++
+		// 只统计中国IP的地区分布
+		if service.IsChinaIP(entry.IP) {
+			if region, ok := normalizeRegion(entry.Region, entry.IP); ok {
+				regionCount[region]++
+				totalRegionEntries++
+			}
 		}
 	}
 
@@ -31,12 +34,12 @@ func Aggregate(entries []LogEntry, summary VisitSummary) StatsResult {
 		}
 		regionStats = append(regionStats, RegionStat{
 			Name:       region,
-			Count:      count,
 			Percentage: round(percentage, 2),
 		})
 	}
+	// 按访问次数降序排序（使用 count 变量）
 	sort.Slice(regionStats, func(i, j int) bool {
-		return regionStats[i].Count > regionStats[j].Count
+		return regionCount[regionStats[i].Name] > regionCount[regionStats[j].Name]
 	})
 
 	return StatsResult{

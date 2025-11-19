@@ -16,7 +16,32 @@ var (
 	geoErr  error
 )
 
-// LookupRegion 根据IP地址返回地区信息（国家或城市）。
+// IsChinaIP 判断IP是否属于中国。
+func IsChinaIP(ip string) bool {
+	ip = strings.TrimSpace(ip)
+	if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+		return false // 本地IP不算中国
+	}
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+
+	geoOnce.Do(initGeoDB)
+	if geoDB == nil {
+		return false
+	}
+
+	record, err := geoDB.City(parsed)
+	if err != nil {
+		return false
+	}
+
+	// 检查国家代码是否为 CN（中国）
+	return record.Country.IsoCode == "CN"
+}
+
+// LookupRegion 根据IP地址返回地区信息（优先省份，其次城市，最后国家）。
 // 若解析失败，返回 "UNKNOWN"。需要提供 data/GeoLite2-City.mmdb 或兼容的数据库文件。
 func LookupRegion(ip string) string {
 	ip = strings.TrimSpace(ip)

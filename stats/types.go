@@ -28,7 +28,6 @@ type TopPost struct {
 // Percentage 范围为0-100，保留两位小数，方便前端直接展示。
 type RegionStat struct {
 	Name       string  `json:"name"`
-	Count      int     `json:"count"`
 	Percentage float64 `json:"percentage"`
 }
 
