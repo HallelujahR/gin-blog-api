@@ -18,10 +18,10 @@ func InitRouter() *gin.Engine {
 	} else if writer != nil {
 		gin.DefaultWriter = io.MultiWriter(gin.DefaultWriter, writer)
 	}
-
 	r := gin.Default()
 	// 跨域中间件：允许全部开发请求，支持Authorization头
 	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.AnalyticsLogger())
 	// 初始化上传目录
 	if err := service.InitUploadDirs(); err != nil {
 		// 如果初始化失败，记录错误但不中断启动

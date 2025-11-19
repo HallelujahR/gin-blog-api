@@ -24,10 +24,10 @@ func Handler(c *gin.Context) {
 		return
 	}
 
-	entries, err := LoadRecentEntries(ctx, defaultLookbackDays)
+	snapshot, err := LoadTrafficSnapshot(defaultLookbackDays)
 	if err != nil {
-		fmt.Printf("[stats] load entries error: %v\n", err)
-		entries = nil
+		fmt.Printf("[stats] load snapshot error: %v\n", err)
+		snapshot = SnapshotData{}
 	}
 
 	summary, err := BuildVisitSummary(defaultLookbackDays, defaultTopPosts)
@@ -37,7 +37,7 @@ func Handler(c *gin.Context) {
 		return
 	}
 
-	result := Aggregate(entries, summary)
+	result := Aggregate(snapshot, summary)
 	result.GeneratedAt = time.Now().UTC()
 
 	if err := SetStatsCache(ctx, result, defaultCacheTTL); err != nil {
