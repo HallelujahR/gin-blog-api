@@ -6,6 +6,7 @@ import (
 
 	"api/models"
 	"api/service"
+	"api/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,6 +32,8 @@ func CreateComment(c *gin.Context) {
 		AuthorUserID: req.AuthorUserID,
 		PostID:       req.PostID,
 		ParentID:     req.ParentID,
+		//获取评论请求来自的IP
+		AuthorIP: utils.GetClientIP(c),
 	}
 	if err := service.CreateComment(&comment); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败"})

@@ -7,7 +7,6 @@ import (
 	"api/service"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,9 +22,6 @@ func InitRouter() *gin.Engine {
 	r := gin.Default()
 	// 跨域中间件：允许全部开发请求，支持Authorization头
 	r.Use(middleware.CORSMiddleware())
-	// 全局限流，防止恶意请求
-	r.Use(middleware.RateLimitMiddleware(120, time.Minute))
-
 	// 初始化上传目录
 	if err := service.InitUploadDirs(); err != nil {
 		// 如果初始化失败，记录错误但不中断启动

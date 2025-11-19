@@ -11,7 +11,8 @@ import (
 func CORSMiddleware() gin.HandlerFunc {
 	return cors.New(cors.Config{
 		// 允许所有来源（开发环境：使用AllowAllOrigins；生产环境建议配置具体域名）
-		AllowAllOrigins: true,
+		AllowAllOrigins: false,
+		AllowOrigins:    []string{"http://riverlog.cn", "http://localhost:8080"},
 
 		// 允许的HTTP方法
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},
