@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	defaultCacheTTL = 24 * time.Hour // 统计结果缓存时间
+	defaultCacheTTL = time.Hour // 统计结果缓存时间
 )
 
 // Handler 返回博客访问统计信息。
