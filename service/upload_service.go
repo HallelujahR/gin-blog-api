@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -235,8 +236,18 @@ func GetFullFileURL(filePath string) string {
 	}
 
 	// 从配置获取基础URL
-	baseURL := strings.TrimSuffix(configs.GetBaseURL(), "/")
-	return baseURL + filePath
+	baseURL := strings.TrimSpace(configs.GetBaseURL())
+	if baseURL == "" {
+		return filePath
+	}
+
+	if parsed, err := url.Parse(baseURL); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+		ref := &url.URL{Path: filePath}
+		return parsed.ResolveReference(ref).String()
+	}
+
+	// 兜底：简单拼接
+	return strings.TrimSuffix(baseURL, "/") + filePath
 }
 
 // 删除文件
