@@ -15,7 +15,6 @@ func RegisterCompressRoutes(r *gin.Engine) {
 		tool.POST("/image-compress/start", adminCtrl.StartCompressJob)
 		tool.GET("/image-compress/stream", adminCtrl.StreamCompressProgress)
 		tool.GET("/image-compress/stats", adminCtrl.GetCompressStats)
+		tool.GET("/image-compress/download", adminCtrl.DownloadCompressResult)
 	}
 }
-
-

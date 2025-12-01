@@ -25,10 +25,10 @@ func FinishImageCompressJob(id string, status string, originalTotal, compressedT
 		return nil
 	}
 	update := map[string]interface{}{
-		"status":          status,
-		"original_total":  originalTotal,
+		"status":           status,
+		"original_total":   originalTotal,
 		"compressed_total": compressedTotal,
-		"finished_at":     time.Now(),
+		"finished_at":      time.Now(),
 	}
 	if tarPath != "" {
 		update["tar_path"] = tarPath
@@ -49,4 +49,9 @@ func CountImageCompressJobs() (int64, error) {
 	return count, err
 }
 
-
+// GetImageCompressJob 根据 ID 获取任务详情。
+func GetImageCompressJob(id string) (models.ImageCompressJob, error) {
+	var job models.ImageCompressJob
+	err := database.GetDB().Where("id = ?", id).First(&job).Error
+	return job, err
+}

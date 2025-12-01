@@ -4,14 +4,17 @@ import (
 	"api/configs"
 	"api/dao"
 	"api/service"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // 上传文件（单文件）
@@ -297,6 +300,53 @@ func StreamCompressProgress(c *gin.Context) {
 			}
 		}
 	}
+}
+
+// DownloadCompressResult 下载压缩结果文件，强制浏览器以附件形式保存。
+// GET /api/tools/image-compress/download?job_id=xxx
+func DownloadCompressResult(c *gin.Context) {
+	jobID := c.Query("job_id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 job_id"})
+		return
+	}
+
+	job, err := dao.GetImageCompressJob(jobID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "压缩任务不存在"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询任务失败: " + err.Error()})
+		}
+		return
+	}
+	if job.TarPath == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "任务尚未生成压缩包"})
+		return
+	}
+
+	filePath := job.TarPath
+	if strings.HasPrefix(filePath, "/") {
+		filePath = "." + filePath
+	} else if !strings.HasPrefix(filePath, "./") {
+		filePath = "./" + filePath
+	}
+
+	if info, statErr := os.Stat(filePath); statErr != nil {
+		if os.IsNotExist(statErr) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "压缩结果已过期或被删除"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败: " + statErr.Error()})
+		}
+		return
+	} else if info.IsDir() {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "内部错误: 指向目录而非文件"})
+		return
+	}
+
+	filename := filepath.Base(filePath)
+	c.Header("Content-Type", "application/zip")
+	c.FileAttachment(filePath, filename)
 }
 
 // GetCompressStats 返回累计任务数量、累计成功处理图片数量以及累计节省空间大小。

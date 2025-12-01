@@ -198,12 +198,12 @@ func (j *CompressJob) run(baseURL string) {
 	}
 
 	relativePath := strings.TrimPrefix(tarPath, "./")
-	tarURL := GetFullFileURL(relativePath)
+	downloadURL := fmt.Sprintf("/api/tools/image-compress/download?job_id=%s", j.ID)
 
 	j.mu.Lock()
 	j.Status = CompressJobSuccess
 	j.TarPath = relativePath
-	j.TarURL = tarURL
+	j.TarURL = downloadURL
 	j.Results = results
 	j.mu.Unlock()
 
@@ -226,7 +226,7 @@ func (j *CompressJob) run(baseURL string) {
 		CompressedTotal:   j.compressedTotal,
 		CompressedPercent: compressedPercent,
 		ReductionPercent:  reductionPercent,
-		TarURL:            tarURL,
+		TarURL:            downloadURL,
 		TarPath:           relativePath,
 		Done:              true,
 	}
