@@ -1,7 +1,7 @@
 package service
 
 import (
-	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"fmt"
 	"image"
@@ -33,15 +33,15 @@ type ImageCompressResult struct {
 }
 
 const (
-	maxImagesPerRequest  = 10           // 单次最多处理 10 张图片
-	maxSingleImageSize   = 15 << 20     // 单张图片最大 15MB（不低于 5MB 的要求）
-	defaultJPEGQuality   = 80           // 默认压缩质量
-	minJPEGQuality       = 10           // 允许的最小压缩质量
-	maxJPEGQuality       = 95           // 允许的最大压缩质量
-	maxConcurrentCompress = 4           // 单次请求内并发压缩协程数
+	maxImagesPerRequest   = 10       // 单次最多处理 10 张图片
+	maxSingleImageSize    = 15 << 20 // 单张图片最大 15MB（不低于 5MB 的要求）
+	defaultJPEGQuality    = 80       // 默认压缩质量
+	minJPEGQuality        = 10       // 允许的最小压缩质量
+	maxJPEGQuality        = 95       // 允许的最大压缩质量
+	maxConcurrentCompress = 4        // 单次请求内并发压缩协程数
 )
 
-// CompressImages 并发压缩多张图片，返回 tar 包路径和每张图片的压缩结果。
+// CompressImages 并发压缩多张图片，返回 zip 包路径和每张图片的压缩结果。
 // 该函数不持久化原始文件，只在内存中处理图片数据。
 func CompressImages(files []*multipart.FileHeader, quality int) (string, []ImageCompressResult, error) {
 	if len(files) == 0 {
@@ -93,8 +93,8 @@ func CompressImages(files []*multipart.FileHeader, quality int) (string, []Image
 		return "", nil, err
 	}
 
-	// 将所有压缩后的图片打包为 tar 文件，放置在临时目录，供 1 小时内下载。
-	tarPath, err := writeImagesToTar(files, dataBufs)
+	// 将所有压缩后的图片打包为 zip 文件，放置在临时目录，供 1 小时内下载。
+	tarPath, err := writeImagesToZip(files, dataBufs)
 	if err != nil {
 		return "", nil, err
 	}
@@ -176,8 +176,8 @@ func compressSingleImage(fh *multipart.FileHeader, quality int) (ImageCompressRe
 	return res, buf.Bytes(), nil
 }
 
-// writeImagesToTar 将多个压缩后的图片字节写入一个 tar 包文件。
-func writeImagesToTar(files []*multipart.FileHeader, dataBufs [][]byte) (string, error) {
+// writeImagesToZip 将多个压缩后的图片字节写入一个 zip 包文件。
+func writeImagesToZip(files []*multipart.FileHeader, dataBufs [][]byte) (string, error) {
 	if len(files) != len(dataBufs) {
 		return "", fmt.Errorf("内部错误: 文件与数据长度不一致")
 	}
@@ -187,16 +187,16 @@ func writeImagesToTar(files []*multipart.FileHeader, dataBufs [][]byte) (string,
 	}
 
 	timestamp := time.Now().Format("20060102-150405")
-	tarName := fmt.Sprintf("compressed-%s.tar", timestamp)
+	tarName := fmt.Sprintf("compressed-%s.zip", timestamp)
 	tarPath := filepath.Join(CompressedTempDir, tarName)
 
 	f, err := os.Create(tarPath)
 	if err != nil {
-		return "", fmt.Errorf("创建 tar 文件失败: %w", err)
+		return "", fmt.Errorf("创建 zip 文件失败: %w", err)
 	}
 	defer f.Close()
 
-	tw := tar.NewWriter(f)
+	tw := zip.NewWriter(f)
 	defer tw.Close()
 
 	for i, fh := range files {
@@ -204,31 +204,31 @@ func writeImagesToTar(files []*multipart.FileHeader, dataBufs [][]byte) (string,
 		if data == nil {
 			continue
 		}
-		hdr := &tar.Header{
-			Name:    safeTarName(fh.Filename),
-			Mode:    0o644,
-			Size:    int64(len(data)),
-			ModTime: time.Now(),
+		hdr := &zip.FileHeader{
+			Name:     safeArchiveName(fh.Filename),
+			Method:   zip.Deflate,
+			Modified: time.Now(),
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return "", fmt.Errorf("写入 tar 头失败: %w", err)
+		writer, err := tw.CreateHeader(hdr)
+		if err != nil {
+			return "", fmt.Errorf("写入 zip 头失败: %w", err)
 		}
-		if _, err := tw.Write(data); err != nil {
-			return "", fmt.Errorf("写入 tar 内容失败: %w", err)
+		if _, err := writer.Write(data); err != nil {
+			return "", fmt.Errorf("写入 zip 内容失败: %w", err)
 		}
 	}
 
 	if err := tw.Close(); err != nil {
-		return "", fmt.Errorf("关闭 tar 写入器失败: %w", err)
+		return "", fmt.Errorf("关闭 zip 写入器失败: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		return "", fmt.Errorf("关闭 tar 文件失败: %w", err)
+		return "", fmt.Errorf("关闭 zip 文件失败: %w", err)
 	}
 	return tarPath, nil
 }
 
-// safeTarName 清理文件名，避免目录穿越等问题。
-func safeTarName(name string) string {
+// safeArchiveName 清理文件名，避免目录穿越等问题。
+func safeArchiveName(name string) string {
 	name = filepath.Base(name)
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -241,5 +241,3 @@ func safeTarName(name string) string {
 func round2(v float64) float64 {
 	return math.Round(v*100) / 100
 }
-
-

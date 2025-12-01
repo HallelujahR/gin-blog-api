@@ -30,8 +30,8 @@ type CompressProgress struct {
 	CompressedTotal   int64             `json:"compressed_total"`   // 当前累计压缩后总大小
 	CompressedPercent float64           `json:"compressed_percent"` // 当前压缩后 / 原始 * 100
 	ReductionPercent  float64           `json:"reduction_percent"`  // 当前缩小百分比 = 100 - CompressedPercent
-	TarURL            string            `json:"tar_url,omitempty"`  // 完成后返回的 tar 下载地址
-	TarPath           string            `json:"tar_path,omitempty"` // 完成后返回的相对路径
+	TarURL            string            `json:"tar_url,omitempty"`  // 完成后返回的压缩包下载地址（历史字段名，实际为 zip）
+	TarPath           string            `json:"tar_path,omitempty"` // 完成后返回的相对路径（zip）
 	Error             string            `json:"error,omitempty"`    // 失败时的错误信息
 	Done              bool              `json:"done"`               // 是否任务结束（成功或失败）
 }
@@ -176,8 +176,8 @@ func (j *CompressJob) run(baseURL string) {
 		}
 	}
 
-	// 全部单张压缩完成后，写入 tar 包
-	tarPath, err := writeImagesToTar(j.Files, dataBufs)
+	// 全部单张压缩完成后，写入 zip 包
+	tarPath, err := writeImagesToZip(j.Files, dataBufs)
 	if err != nil {
 		j.mu.Lock()
 		j.Status = CompressJobFailed

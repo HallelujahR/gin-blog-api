@@ -37,7 +37,7 @@ func InitUploadDirs() error {
 	return nil
 }
 
-// cleanupCompressedTempFiles 周期性扫描临时压缩目录，将超过保留时间的 tar 包删除。
+// cleanupCompressedTempFiles 周期性扫描临时压缩目录，将超过保留时间的压缩包删除。
 func cleanupCompressedTempFiles() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
@@ -50,8 +50,8 @@ func cleanupCompressedTempFiles() {
 			if info.IsDir() {
 				return nil
 			}
-			// 仅处理 .tar 文件
-			if strings.ToLower(filepath.Ext(info.Name())) != ".tar" {
+			// 仅处理 .zip 文件
+			if strings.ToLower(filepath.Ext(info.Name())) != ".zip" {
 				return nil
 			}
 			if time.Since(info.ModTime()) > compressKeepPeriod {
