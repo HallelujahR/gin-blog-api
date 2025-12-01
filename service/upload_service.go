@@ -16,21 +16,55 @@ import (
 
 // 上传文件存储目录
 const (
-	UploadDir      = "./uploads"
-	ImageUploadDir = "./uploads/images"
-	FileUploadDir  = "./uploads/files"
-	PublicURL      = "/uploads" // 公开访问URL前缀
+	UploadDir          = "./uploads"
+	ImageUploadDir     = "./uploads/images"
+	FileUploadDir      = "./uploads/files"
+	CompressedTempDir  = "./uploads/compressed_tmp" // 临时压缩结果目录，仅保留短时间用于下载
+	PublicURL          = "/uploads"                 // 公开访问URL前缀
+	compressKeepPeriod = time.Hour                  // 压缩结果保留时长
 )
 
 // 初始化上传目录
 func InitUploadDirs() error {
-	dirs := []string{UploadDir, ImageUploadDir, FileUploadDir}
+	dirs := []string{UploadDir, ImageUploadDir, FileUploadDir, CompressedTempDir}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("创建目录失败 %s: %v", dir, err)
 		}
 	}
+	// 启动后台清理协程，定期清理过期的临时压缩包，避免磁盘被占满。
+	go cleanupCompressedTempFiles()
 	return nil
+}
+
+// cleanupCompressedTempFiles 周期性扫描临时压缩目录，将超过保留时间的 tar 包删除。
+func cleanupCompressedTempFiles() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		_ = filepath.Walk(CompressedTempDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			if info.IsDir() {
+				return nil
+			}
+			// 仅处理 .tar 文件
+			if strings.ToLower(filepath.Ext(info.Name())) != ".tar" {
+				return nil
+			}
+			if time.Since(info.ModTime()) > compressKeepPeriod {
+				_ = os.Remove(path)
+			}
+			return nil
+		})
+	}
+}
+
+// CompressKeepPeriod 暴露压缩结果的保留时间，用于 API 返回给前端。
+func CompressKeepPeriod() time.Duration {
+	return compressKeepPeriod
 }
 
 // 生成唯一文件名

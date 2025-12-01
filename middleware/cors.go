@@ -10,9 +10,12 @@ import (
 // CORSMiddleware 配置CORS跨域中间件
 func CORSMiddleware() gin.HandlerFunc {
 	return cors.New(cors.Config{
-		// 允许所有来源（开发环境：使用AllowAllOrigins；生产环境建议配置具体域名）
+		// 允许来源：
+		// - 生产环境: riverlog.cn
+		// - 本地后端: localhost:8080
+		// - 本地前端开发: localhost:5173
 		AllowAllOrigins: false,
-		AllowOrigins:    []string{"http://riverlog.cn", "http://localhost:8080"},
+		AllowOrigins:    []string{"http://riverlog.cn", "http://localhost:8080", "http://localhost:5173"},
 
 		// 允许的HTTP方法
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},

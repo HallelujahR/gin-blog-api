@@ -21,5 +21,7 @@ func InitDB() {
 		&models.Page{},
 		&models.PostViewStat{},
 		&models.TrafficSnapshot{},
+		&models.ImageCompressStats{},
+		&models.ImageCompressJob{},
 	)
 }

@@ -1,11 +1,15 @@
 package admin
 
 import (
+	"api/configs"
+	"api/dao"
 	"api/service"
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -197,6 +201,131 @@ func UploadFiles(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// （同步压缩接口已移除，仅保留异步 + SSE 通信）
+
+// StartCompressJob 启动异步压缩任务，返回 job_id，前端可通过 SSE 订阅进度。
+// 请求方式与 CompressImages 类似：multipart/form-data，字段 images / file，quality。
+func StartCompressJob(c *gin.Context) {
+	const maxTotalSize = 100 << 20
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxTotalSize)
+
+	qualityStr := c.DefaultPostForm("quality", "80")
+	quality, err := strconv.Atoi(qualityStr)
+	if err != nil {
+		quality = 80
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "表单解析失败: " + err.Error()})
+		return
+	}
+
+	files := form.File["images"]
+	if len(files) == 0 {
+		files = form.File["file"]
+	}
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有上传任何图片"})
+		return
+	}
+
+	baseURL := configs.GetBaseURL()
+	job, err := service.StartCompressJob(files, quality, baseURL)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "创建压缩任务失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"job_id":    job.ID,
+		"status":    job.Status,
+		"createdAt": job.CreatedAt.Format(time.RFC3339),
+	})
+}
+
+// StreamCompressProgress 通过 SSE 推送压缩进度。
+// GET /api/admin/upload/compress/stream?job_id=xxx
+func StreamCompressProgress(c *gin.Context) {
+	jobID := c.Query("job_id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 job_id"})
+		return
+	}
+
+	job, ok := service.GetCompressJob(jobID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "压缩任务不存在"})
+		return
+	}
+
+	// SSE 头部设置
+	w := c.Writer
+	header := w.Header()
+	header.Set("Content-Type", "text/event-stream")
+	header.Set("Cache-Control", "no-cache")
+	header.Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "当前服务器不支持 SSE"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	ch := job.ProgressChan()
+
+	// 立即刷新一次，让浏览器建立连接
+	flusher.Flush()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case p, ok := <-ch:
+			if !ok {
+				return
+			}
+			data := service.EncodeProgressEvent(p)
+			// SSE 格式: data: <json>\n\n
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+			if p.Done {
+				return
+			}
+		}
+	}
+}
+
+// GetCompressStats 返回累计任务数量、累计成功处理图片数量以及累计节省空间大小。
+// GET /api/admin/upload/compress/stats
+func GetCompressStats(c *gin.Context) {
+	totalJobs, err := dao.CountImageCompressJobs()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询任务数量失败: " + err.Error()})
+		return
+	}
+
+	stats, err := dao.GetImageCompressStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询累计统计失败: " + err.Error()})
+		return
+	}
+
+	savedBytes := stats.TotalOriginalBytes - stats.TotalCompressedBytes
+	if savedBytes < 0 {
+		savedBytes = 0
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total_jobs":             totalJobs,                  // 累计任务数量
+		"total_images":           stats.TotalImages,          // 累计成功处理的图片张数
+		"total_original_bytes":   stats.TotalOriginalBytes,   // 累计原始大小
+		"total_compressed_bytes": stats.TotalCompressedBytes, // 累计压缩后大小
+		"saved_bytes":            savedBytes,                 // 累计节省的空间大小
+	})
 }
 
 // 删除文件
