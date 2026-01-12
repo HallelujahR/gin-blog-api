@@ -11,10 +11,8 @@ const (
 )
 
 // BuildVisitSummary 汇总数据库中的访问量与文章热度信息。
+// 如果days <= 0，则统计所有历史数据。
 func BuildVisitSummary(days, topN int) (VisitSummary, error) {
-	if days <= 0 {
-		days = defaultLookbackDays
-	}
 	if topN <= 0 {
 		topN = defaultTopPosts
 	}
@@ -28,7 +26,7 @@ func BuildVisitSummary(days, topN int) (VisitSummary, error) {
 		return VisitSummary{}, err
 	}
 
-	// 若近30天无数据，回退到文章表的累计数据
+	// 若查询结果无数据，回退到文章表的累计数据
 	if total == 0 {
 		if total, err = dao.SumAllPostViews(); err != nil {
 			return VisitSummary{}, err

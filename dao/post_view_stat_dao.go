@@ -32,36 +32,39 @@ func IncrementPostViewStat(postID uint64, viewTime time.Time) error {
 		Create(&stat).Error
 }
 
-// SumVisitsSince 统计最近days天的总访问次数。
+// SumVisitsSince 统计最近days天的总访问次数。如果days <= 0，则统计所有历史数据。
 func SumVisitsSince(days int) (int64, error) {
-	if days <= 0 {
-		days = 30
-	}
-	start := normalizeDate(time.Now().AddDate(0, 0, -(days - 1)))
 	var total int64
-	err := database.GetDB().
-		Model(&models.PostViewStat{}).
-		Where("date >= ?", start).
-		Select("COALESCE(SUM(views), 0)").
-		Scan(&total).Error
+	query := database.GetDB().Model(&models.PostViewStat{})
+	
+	// 如果days > 0，添加日期限制；否则查询所有历史数据
+	if days > 0 {
+		start := normalizeDate(time.Now().AddDate(0, 0, -(days - 1)))
+		query = query.Where("date >= ?", start)
+	}
+	
+	err := query.Select("COALESCE(SUM(views), 0)").Scan(&total).Error
 	return total, err
 }
 
-// TopPostsByViewsSince 获取最近days天内访问量最高的文章。
+// TopPostsByViewsSince 获取最近days天内访问量最高的文章。如果days <= 0，则统计所有历史数据。
 func TopPostsByViewsSince(days, limit int) ([]PostViewRank, error) {
 	if limit <= 0 {
 		limit = 3
 	}
-	if days <= 0 {
-		days = 30
-	}
-	start := normalizeDate(time.Now().AddDate(0, 0, -(days - 1)))
 	var ranks []PostViewRank
-	err := database.GetDB().
+	query := database.GetDB().
 		Table("post_view_stats pvs").
 		Select("pvs.post_id as post_id, posts.title as title, COALESCE(SUM(pvs.views),0) as views").
-		Joins("JOIN posts ON posts.id = pvs.post_id").
-		Where("pvs.date >= ?", start).
+		Joins("JOIN posts ON posts.id = pvs.post_id")
+	
+	// 如果days > 0，添加日期限制；否则查询所有历史数据
+	if days > 0 {
+		start := normalizeDate(time.Now().AddDate(0, 0, -(days - 1)))
+		query = query.Where("pvs.date >= ?", start)
+	}
+	
+	err := query.
 		Group("pvs.post_id, posts.title").
 		Order("views DESC").
 		Limit(limit).

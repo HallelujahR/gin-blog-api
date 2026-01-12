@@ -24,13 +24,15 @@ func Handler(c *gin.Context) {
 		return
 	}
 
-	snapshot, err := LoadTrafficSnapshot(defaultLookbackDays)
+	// 使用0表示查询所有历史数据
+	snapshot, err := LoadTrafficSnapshot(0)
 	if err != nil {
 		fmt.Printf("[stats] load snapshot error: %v\n", err)
 		snapshot = SnapshotData{}
 	}
 
-	summary, err := BuildVisitSummary(defaultLookbackDays, defaultTopPosts)
+	// 使用0表示查询所有历史数据
+	summary, err := BuildVisitSummary(0, defaultTopPosts)
 	if err != nil {
 		fmt.Printf("[stats] build summary error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
