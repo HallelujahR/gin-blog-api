@@ -47,6 +47,8 @@ func ListPostsWithParams(page int, pageSize int, q, sort, category, tag, status 
 	}
 
 	if q != "" {
+		// 优化：使用前缀匹配而不是前后通配符，可以利用索引
+		// 如果确实需要全文搜索，建议使用MySQL的全文索引（FULLTEXT）
 		db = db.Where("posts.title LIKE ? OR posts.content LIKE ?", q+"%", q+"%")
 	}
 	orderDirection := sanitizeSortOrder(sort)
@@ -86,10 +88,34 @@ func AddCategoryToPost(postID, categoryID uint64) error {
 	return database.GetDB().Create(&rel).Error
 }
 
+// 批量给文章添加分类（性能优化：使用批量插入）
+func BatchAddCategoriesToPost(postID uint64, categoryIDs []uint64) error {
+	if len(categoryIDs) == 0 {
+		return nil
+	}
+	rels := make([]models.PostCategory, 0, len(categoryIDs))
+	for _, cid := range categoryIDs {
+		rels = append(rels, models.PostCategory{PostID: postID, CategoryID: cid})
+	}
+	return database.GetDB().Create(&rels).Error
+}
+
 // 给文章添加标签
 func AddTagToPost(postID, tagID uint64) error {
 	rel := models.PostTag{PostID: postID, TagID: tagID}
 	return database.GetDB().Create(&rel).Error
+}
+
+// 批量给文章添加标签（性能优化：使用批量插入）
+func BatchAddTagsToPost(postID uint64, tagIDs []uint64) error {
+	if len(tagIDs) == 0 {
+		return nil
+	}
+	rels := make([]models.PostTag, 0, len(tagIDs))
+	for _, tid := range tagIDs {
+		rels = append(rels, models.PostTag{PostID: postID, TagID: tid})
+	}
+	return database.GetDB().Create(&rels).Error
 }
 
 // 统计文章总数（用于分页）
@@ -102,6 +128,12 @@ func CountPosts(q, sort, category, tag, status string) (int64, error) {
 	}
 
 	if q != "" {
+		// 注意：前后通配符无法使用索引，性能较差
+		// 对于大量数据，建议：
+		// 1. 使用前缀匹配：q+"%"
+		// 2. 或使用MySQL全文索引（FULLTEXT）进行全文搜索
+		// 3. 或使用Elasticsearch等搜索引擎
+		// 当前保持原逻辑，但添加注释说明性能问题
 		db = db.Where("title LIKE ? OR content LIKE ?", "%"+q+"%", "%"+q+"%")
 	}
 

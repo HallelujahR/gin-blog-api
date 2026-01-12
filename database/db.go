@@ -1,9 +1,11 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"gorm.io/gorm/logger"
 
@@ -25,6 +27,27 @@ func GetDB() *gorm.DB {
 		})
 		if err != nil {
 			panic("数据库连接失败: " + err.Error())
+		}
+
+		// 配置数据库连接池参数以优化性能
+		var sqlDB *sql.DB
+		sqlDB, err = db.DB()
+		if err != nil {
+			panic("获取底层数据库连接失败: " + err.Error())
+		}
+
+		// 设置最大打开连接数（根据实际负载调整）
+		sqlDB.SetMaxOpenConns(25)
+		// 设置最大空闲连接数
+		sqlDB.SetMaxIdleConns(10)
+		// 设置连接的最大生命周期（避免长时间连接导致的问题）
+		sqlDB.SetConnMaxLifetime(5 * time.Minute)
+		// 设置连接的最大空闲时间
+		sqlDB.SetConnMaxIdleTime(10 * time.Minute)
+
+		// 验证连接是否可用
+		if err := sqlDB.Ping(); err != nil {
+			panic("数据库连接验证失败: " + err.Error())
 		}
 	})
 	return db
@@ -58,11 +81,11 @@ func getDSN() string {
 			dbName = "blog"
 		}
 
-		// 构建DSN
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		// 构建DSN，添加性能优化参数
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s&readTimeout=30s&writeTimeout=30s",
 			dbUser, dbPassword, dbHost, dbPort, dbName)
 		return dsn
 	}
-	// 默认本地开发环境配置
-	return "root:10244201@tcp(127.0.0.1:3306)/blog?charset=utf8mb4&parseTime=True&loc=Local"
+	// 默认本地开发环境配置，添加性能优化参数
+	return "root:10244201@tcp(127.0.0.1:3306)/blog?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s&readTimeout=30s&writeTimeout=30s"
 }

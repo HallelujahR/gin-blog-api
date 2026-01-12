@@ -19,11 +19,16 @@ func CreatePost(post *models.Post, categoryIDs, tagIDs []uint64) error {
 	if err != nil {
 		return err
 	}
-	for _, cid := range categoryIDs {
-		dao.AddCategoryToPost(post.ID, cid)
+	// 性能优化：使用批量插入而不是循环插入
+	if len(categoryIDs) > 0 {
+		if err := dao.BatchAddCategoriesToPost(post.ID, categoryIDs); err != nil {
+			return err
+		}
 	}
-	for _, tid := range tagIDs {
-		dao.AddTagToPost(post.ID, tid)
+	if len(tagIDs) > 0 {
+		if err := dao.BatchAddTagsToPost(post.ID, tagIDs); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -136,14 +141,14 @@ func UpdatePostCategoriesAndTags(postID uint64, categoryIDs, tagIDs []uint64) er
 	dao.DeletePostCategories(postID)
 	dao.DeletePostTags(postID)
 
-	// 添加新的关联
-	for _, cid := range categoryIDs {
-		if err := dao.AddCategoryToPost(postID, cid); err != nil {
+	// 性能优化：使用批量插入而不是循环插入
+	if len(categoryIDs) > 0 {
+		if err := dao.BatchAddCategoriesToPost(postID, categoryIDs); err != nil {
 			return err
 		}
 	}
-	for _, tid := range tagIDs {
-		if err := dao.AddTagToPost(postID, tid); err != nil {
+	if len(tagIDs) > 0 {
+		if err := dao.BatchAddTagsToPost(postID, tagIDs); err != nil {
 			return err
 		}
 	}

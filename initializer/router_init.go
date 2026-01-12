@@ -7,11 +7,13 @@ import (
 	"api/service"
 	"fmt"
 	"io"
+	"net/http/pprof"
 
 	"github.com/gin-gonic/gin"
 )
 
 func InitRouter() *gin.Engine {
+
 	// 初始化访问日志，失败时仅记录警告信息
 	if writer, path, err := service.InitAccessLog(); err != nil {
 		fmt.Fprintf(gin.DefaultErrorWriter, "警告: 访问日志初始化失败(%s): %v\n", path, err)
@@ -28,6 +30,10 @@ func InitRouter() *gin.Engine {
 		fmt.Fprintf(gin.DefaultErrorWriter, "警告: 上传目录初始化失败: %v\n", err)
 	}
 
+	// 注册 pprof 路由（复用 Gin 的 HTTP 服务）
+	r.GET("/debug/pprof/*any", func(c *gin.Context) {
+		pprof.Index(c.Writer, c.Request)
+	})
 	// 静态文件服务：提供上传文件的公开访问
 	r.Static("/uploads", "./uploads")
 

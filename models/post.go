@@ -21,8 +21,8 @@ type Post struct {
 	ViewCount     int        `gorm:"default:0;comment:阅读数" json:"view_count"`
 	LikeCount     int        `gorm:"default:0;comment:点赞数量" json:"like_count"`
 	CommentCount  int        `gorm:"default:0;comment:评论数量" json:"comment_count"`
-	PublishedAt   *time.Time `gorm:"comment:发布时间" json:"published_at"`
-	CreatedAt     time.Time  `gorm:"autoCreateTime;comment:创建时间" json:"created_at"`
+	PublishedAt   *time.Time `gorm:"index;comment:发布时间" json:"published_at"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime;index;comment:创建时间" json:"created_at"`
 	UpdatedAt     time.Time  `gorm:"autoUpdateTime;comment:更新时间" json:"updated_at"`
 
 	// 处理后字段
