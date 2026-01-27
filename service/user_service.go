@@ -24,9 +24,9 @@ func ValidateLogin(identifier, pwd string) (*models.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	//if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(pwd)) != nil {
-	//	return nil, bcrypt.ErrMismatchedHashAndPassword
-	//}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(pwd)) != nil {
+		return nil, bcrypt.ErrMismatchedHashAndPassword
+	}
 	return user, nil
 }
 
@@ -48,4 +48,42 @@ func DeleteUser(id uint64) error {
 // 用户列表
 func ListAllUsers() ([]models.User, error) {
 	return dao.ListAllUsers()
+}
+
+// 修改用户密码（管理员功能）
+func ChangeUserPassword(userID uint64, newPassword string) error {
+	user, err := dao.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = string(hash)
+	return dao.UpdateUser(user)
+}
+
+// 验证旧密码并修改密码
+func ChangePasswordWithValidation(userID uint64, oldPassword, newPassword string) error {
+	user, err := dao.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	// 验证旧密码
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
+		return bcrypt.ErrMismatchedHashAndPassword
+	}
+
+	// 生成新密码哈希
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = string(hash)
+	return dao.UpdateUser(user)
 }

@@ -17,6 +17,7 @@ func RegisterAdminUserRoutes(r *gin.Engine) {
 			users.DELETE("/:id", adminCtrl.DeleteUser)
 			users.PUT("/:id/status", adminCtrl.UpdateUserStatus)
 			users.PUT("/:id/role", adminCtrl.UpdateUserRole)
+			users.PUT("/:id/password", adminCtrl.ChangeUserPassword)
 		}
 	}
 }
