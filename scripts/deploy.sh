@@ -134,6 +134,10 @@ fi
   if [[ ! -d "$FRONTEND_DIST" ]]; then
     die "前端构建失败，未找到 $FRONTEND_DIST"
   fi
+  # 对 JS/CSS/HTML/SVG 生成预压缩 .gz 文件，配合 Nginx gzip_static 使用
+  log "生成预压缩 .gz 文件..."
+  find "$FRONTEND_DIST" -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.svg" -o -name "*.json" \) -exec gzip -9 -k -f {} \;
+  log "预压缩完成，共 $(find "$FRONTEND_DIST" -name "*.gz" | wc -l) 个文件"
   log "前端构建完成，输出目录 $FRONTEND_DIST"
 }
 
