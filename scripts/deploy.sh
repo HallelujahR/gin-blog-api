@@ -3,13 +3,14 @@
 ###############################################################################
 # Go API 裸机部署脚本
 # -----------------------------------------------------------------------------
-# 1. 重新编译当前项目（GOOS=linux GOARCH=amd64）
-# 2. 自动生成/更新 systemd 服务（blog-api.service）
-# 3. 重载并启动服务，确保日志目录存在
+# 1. 拉取当前后端仓库最新代码
+# 2. 重新编译当前项目（GOOS=linux GOARCH=amd64）
+# 3. 自动生成/更新 systemd 服务（blog-api.service）
+# 4. 重载并启动服务，确保日志目录存在
 #
 # 用法：
-#   sudo ./scripts/deploy.sh              # 默认执行 build + restart
-#   sudo ./scripts/deploy.sh build        # 仅构建二进制
+#   sudo ./scripts/deploy.sh              # 默认执行 update + build + restart
+#   sudo ./scripts/deploy.sh build        # 拉代码并仅构建二进制
 #   sudo ./scripts/deploy.sh restart      # 在已有二进制基础上重启服务
 ###############################################################################
 
@@ -23,10 +24,6 @@ BIN_DIR="$PROJECT_ROOT/bin"
 BINARY_PATH="$BIN_DIR/api"
 LOG_DIR="$PROJECT_ROOT/logs"
 ENV_FILE="$PROJECT_ROOT/.env"
-
-# 前端构建相关配置，可通过环境变量覆盖
-FRONTEND_DIR="${FRONTEND_DIR:-/www/wwwroot/blog/gin-blog-vue-font}"
-FRONTEND_DIST="$FRONTEND_DIR/dist"
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -49,9 +46,7 @@ require_root() {
 check_prerequisites() {
   command -v go >/dev/null 2>&1 || die "未检测到 go，请先安装 Go 1.25+"
   command -v systemctl >/dev/null 2>&1 || die "当前系统不支持 systemd"
-  command -v npm >/dev/null 2>&1 || die "未检测到 npm，请先安装 Node.js 18+"
   [[ -f "$ENV_FILE" ]] || die "未找到 .env，请先根据 env.template 创建"
-  [[ -d "$FRONTEND_DIR" ]] || die "未找到前端目录 $FRONTEND_DIR"
 }
 
 ensure_dirs() {
@@ -68,11 +63,6 @@ update_repo() {
   else
     warn "$dir 不是 Git 仓库，跳过拉取"
 fi
-}
-
-update_code() {
-  update_repo "$PROJECT_ROOT"
-  update_repo "$FRONTEND_DIR"
 }
 
 build_binary() {
@@ -118,65 +108,35 @@ reload_service() {
   systemctl status "$SERVICE_NAME" --no-pager
 }
 
-build_frontend() {
-  log "构建前端 ($FRONTEND_DIR)..."
-  if [[ ! -d "$FRONTEND_DIR" ]]; then
-    die "前端目录 $FRONTEND_DIR 不存在，无法构建"
-fi
-  pushd "$FRONTEND_DIR" >/dev/null
-  if [[ -f package-lock.json ]]; then
-    npm ci
-  else
-    npm install
-  fi
-  npm run build
-  popd >/dev/null
-  if [[ ! -d "$FRONTEND_DIST" ]]; then
-    die "前端构建失败，未找到 $FRONTEND_DIST"
-  fi
-  # 对 JS/CSS/HTML/SVG 生成预压缩 .gz 文件，配合 Nginx gzip_static 使用
-  log "生成预压缩 .gz 文件..."
-  find "$FRONTEND_DIST" -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.svg" -o -name "*.json" \) -exec gzip -9 -k -f {} \;
-  log "预压缩完成，共 $(find "$FRONTEND_DIST" -name "*.gz" | wc -l) 个文件"
-  log "前端构建完成，输出目录 $FRONTEND_DIST"
-}
-
-deploy_frontend_stack() {
-  build_frontend
-}
-
 case "$COMMAND" in
   build)
     require_root
     check_prerequisites
     ensure_dirs
-    update_code
+    update_repo "$PROJECT_ROOT"
     build_binary
-    build_frontend
-    log "仅构建完成，如需启动请执行 sudo systemctl restart $SERVICE_NAME && sudo systemctl reload nginx"
+    log "仅构建完成，如需启动请执行 sudo systemctl restart $SERVICE_NAME"
     ;;
   restart)
     require_root
     check_prerequisites
     ensure_dirs
-    update_code
     if [[ ! -x "$BINARY_PATH" ]]; then
       warn "未找到二进制，自动触发构建"
+      update_repo "$PROJECT_ROOT"
       build_binary
     fi
     write_service_file
     reload_service
-    deploy_frontend_stack
     ;;
   deploy|*)
     require_root
     check_prerequisites
     ensure_dirs
-    update_code
+    update_repo "$PROJECT_ROOT"
     build_binary
     write_service_file
     reload_service
-    deploy_frontend_stack
     ;;
 esac
 

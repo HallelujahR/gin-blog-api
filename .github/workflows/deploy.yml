@@ -11,7 +11,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.0
@@ -21,7 +21,6 @@ jobs:
         key: ${{ secrets.SERVER_SSH_KEY }}
         port: ${{ secrets.SERVER_PORT || 22 }}
         script: |
-          cd /opt/blog/api
+          cd /www/wwwroot/blog/api
           git pull origin main
-          ./scripts/deploy.sh production
-
+          sudo ./scripts/deploy.sh deploy
