@@ -129,6 +129,27 @@ func CreatePost(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"post": post})
 }
 
+func SuggestPostTaxonomy(c *gin.Context) {
+	var req struct {
+		Title   string `json:"title"`
+		Excerpt string `json:"excerpt"`
+		Content string `json:"content" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数格式错误: " + err.Error()})
+		return
+	}
+
+	suggestions, err := service.SuggestTaxonomy(req.Title, req.Excerpt, req.Content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取分类标签建议失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"suggestions": suggestions})
+}
+
 // 处理图片上传的辅助函数
 func handleImageUpload(file *multipart.FileHeader) (string, error) {
 	// 验证文件类型

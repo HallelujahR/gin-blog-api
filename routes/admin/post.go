@@ -13,11 +13,12 @@ func RegisterAdminPostRoutes(r *gin.Engine) {
 	{
 		posts := adminGroup.Group("/posts")
 		{
-			posts.GET("", adminCtrl.ListPosts)           // 文章列表（支持分页和筛选）
-			posts.POST("", adminCtrl.CreatePost)         // 创建文章
-			posts.GET("/:id", adminCtrl.GetPost)        // 获取文章详情
-			posts.PUT("/:id", adminCtrl.UpdatePost)      // 更新文章
-			posts.DELETE("/:id", adminCtrl.DeletePost)   // 删除文章
+			posts.GET("", adminCtrl.ListPosts)                             // 文章列表（支持分页和筛选）
+			posts.POST("/suggest-taxonomy", adminCtrl.SuggestPostTaxonomy) // 根据内容推荐分类和标签
+			posts.POST("", adminCtrl.CreatePost)                           // 创建文章
+			posts.GET("/:id", adminCtrl.GetPost)                           // 获取文章详情
+			posts.PUT("/:id", adminCtrl.UpdatePost)                        // 更新文章
+			posts.DELETE("/:id", adminCtrl.DeletePost)                     // 删除文章
 		}
 	}
 }

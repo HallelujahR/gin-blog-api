@@ -49,6 +49,7 @@ func InitRouter() *gin.Engine {
 	routes.RegisterTagRoutes(r)
 	routes.RegisterLikeRoutes(r)
 	routes.RegisterPageRoutes(r)
+	routes.RegisterGuestbookRoutes(r)
 	routes.RegisterHotDataRoutes(r)
 	routes.RegisterStatsRoutes(r)
 	// 公开的工具类接口（例如图片压缩），不需要后台登录
@@ -60,6 +61,7 @@ func InitRouter() *gin.Engine {
 	adminRoutes.RegisterAdminCategoryRoutes(r)
 	adminRoutes.RegisterAdminTagRoutes(r)
 	adminRoutes.RegisterAdminCommentRoutes(r)
+	adminRoutes.RegisterAdminGuestbookRoutes(r)
 	adminRoutes.RegisterAdminPageRoutes(r)   // 页面管理接口
 	adminRoutes.RegisterAdminUploadRoutes(r) // 文件上传接口
 

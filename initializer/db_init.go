@@ -19,6 +19,7 @@ func InitDB() {
 		&models.Like{},
 		&models.HotData{},
 		&models.Page{},
+		&models.GuestbookMessage{},
 		&models.PostViewStat{},
 		&models.TrafficSnapshot{},
 		&models.ImageCompressStats{},
