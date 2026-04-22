@@ -129,21 +129,32 @@ func ListPosts(c *gin.Context) {
 	}
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
-	posts, err := service.ListPostsWithParams(req.Page, req.Size, req.Q, "DESC", req.Category, req.Tag, "published")
+	sort := req.Sort
+	if sort == "" {
+		sort = "DESC"
+	}
+	resp, err := service.ListPostsWithPagination(req.Page, req.Size, req.Q, sort, req.Category, req.Tag, "published")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
 	}
 
 	// 确保列表中的cover_image都是完整URL
-	for i := range posts {
-		if posts[i].CoverImage != "" {
-			posts[i].CoverImage = service.GetFullFileURL(posts[i].CoverImage)
+	for i := range resp.Posts {
+		if resp.Posts[i].CoverImage != "" {
+			resp.Posts[i].CoverImage = service.GetFullFileURL(resp.Posts[i].CoverImage)
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"posts": posts})
+	c.JSON(http.StatusOK, gin.H{
+		"posts":       resp.Posts,
+		"total":       resp.Total,
+		"page":        resp.Page,
+		"page_size":   resp.PageSize,
+		"total_pages": resp.TotalPages,
+	})
 }
 
 // 修改

@@ -1,15 +1,20 @@
 package main
 
 import (
+	"api/configs"
 	"api/initializer"
 	"log"
 	"net/http"
 )
 
 func main() {
-	go func() {
-		log.Printf("pprof server start at :6060")
-		log.Fatal(http.ListenAndServe(":6060", nil))
-	}()
+	cfg := configs.Load()
+	if cfg.PprofEnabled {
+		go func() {
+			addr := ":" + cfg.PprofPort
+			log.Printf("pprof server start at %s", addr)
+			log.Fatal(http.ListenAndServe(addr, nil))
+		}()
+	}
 	initializer.Run()
 }

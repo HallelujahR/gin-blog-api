@@ -11,20 +11,23 @@ import (
 )
 
 const (
-	etlInterval = 5 * time.Minute
+	defaultETLInterval = 30 * time.Minute
 )
 
 var etlOnce sync.Once
 
 // StartETLWorker 启动定时任务，周期性地将 Redis 中的实时指标固化到数据库快照表，用于统计分析。
-func StartETLWorker() {
+func StartETLWorker(interval time.Duration) {
 	etlOnce.Do(func() {
-		go runETL()
+		if interval <= 0 {
+			interval = defaultETLInterval
+		}
+		go runETL(interval)
 	})
 }
 
-func runETL() {
-	ticker := time.NewTicker(etlInterval)
+func runETL(interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

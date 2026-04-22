@@ -2,6 +2,8 @@ package routes
 
 import (
 	"api/controllers"
+	"api/middleware"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,7 +13,7 @@ func RegisterTagRoutes(r *gin.Engine) {
 	{
 		tag.POST("", controllers.CreateTag)
 		tag.GET(":id", controllers.GetTag)
-		tag.GET("", controllers.ListTags)
+		tag.GET("", middleware.RateLimitMiddleware(120, time.Minute), controllers.ListTags)
 		tag.PUT(":id", controllers.UpdateTag)
 		tag.DELETE(":id", controllers.DeleteTag)
 	}

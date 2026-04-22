@@ -37,6 +37,13 @@ func RateLimitMiddleware(limit int, window time.Duration) gin.HandlerFunc {
 		now := time.Now()
 
 		mu.Lock()
+		if len(buckets) > 2048 {
+			for key, bucket := range buckets {
+				if now.Sub(bucket.windowStart) > 2*window {
+					delete(buckets, key)
+				}
+			}
+		}
 		entry, exists := buckets[ip]
 		if !exists {
 			// 新IP直接创建计数器，允许通过

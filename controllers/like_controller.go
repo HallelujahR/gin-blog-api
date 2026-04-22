@@ -19,10 +19,18 @@ func ToggleLike(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 		return
 	}
-	
+	if req.PostID != nil && *req.PostID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "post_id 无效"})
+		return
+	}
+	if req.CommentID != nil && *req.CommentID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "comment_id 无效"})
+		return
+	}
+
 	// 获取客户端IP
 	ip := utils.GetClientIP(c)
-	
+
 	msg, err := service.ToggleLike(ip, req.PostID, req.CommentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
@@ -36,11 +44,19 @@ func CountLikes(c *gin.Context) {
 	var postID, commentID *uint64
 	if v := c.Query("post_id"); v != "" {
 		id, _ := strconv.ParseUint(v, 10, 64)
-		postID = &id
+		if id > 0 {
+			postID = &id
+		}
 	}
 	if v := c.Query("comment_id"); v != "" {
 		id, _ := strconv.ParseUint(v, 10, 64)
-		commentID = &id
+		if id > 0 {
+			commentID = &id
+		}
+	}
+	if postID == nil && commentID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+		return
 	}
 	n, err := service.CountLikes(postID, commentID)
 	if err != nil {

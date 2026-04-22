@@ -4,6 +4,8 @@ import (
 	"api/database"
 	"api/models"
 	"strings"
+
+	"gorm.io/gorm"
 )
 
 // 新增文章
@@ -28,40 +30,19 @@ func ListPosts() ([]models.Post, error) {
 // 文章列表带参数
 
 func ListPostsWithParams(page int, pageSize int, q, sort, category, tag, status string) ([]models.PostWithRelations, error) {
+	var posts []models.Post
+	db := buildPostFilterQuery(q, sort, category, tag, status)
 
-	var posts []models.PostWithRelations
-	db := database.GetDB().Model(&models.Post{}).
-		Select(`posts.*, 
-			GROUP_CONCAT(DISTINCT categories.name) as category_names_sql,
-			GROUP_CONCAT(DISTINCT categories.id) as category_ids_sql,
-			GROUP_CONCAT(DISTINCT tags.name) as tag_names_sql,
-			GROUP_CONCAT(DISTINCT tags.id) as tag_ids_sql`).
-		Joins("LEFT JOIN post_categories ON post_categories.post_id = posts.id").
-		Joins("LEFT JOIN categories ON categories.id = post_categories.category_id").
-		Joins("LEFT JOIN post_tags ON post_tags.post_id = posts.id").
-		Joins("LEFT JOIN tags ON tags.id = post_tags.tag_id").
-		Group("posts.id")
-
-	if status != "" {
-		db = db.Where("posts.status = ?", status)
+	err := db.
+		Select("posts.*").
+		Distinct("posts.id").
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		Find(&posts).Error
+	if err != nil {
+		return nil, err
 	}
-
-	if q != "" {
-		// 优化：使用前缀匹配而不是前后通配符，可以利用索引
-		// 如果确实需要全文搜索，建议使用MySQL的全文索引（FULLTEXT）
-		db = db.Where("posts.title LIKE ? OR posts.content LIKE ?", q+"%", q+"%")
-	}
-	orderDirection := sanitizeSortOrder(sort)
-	db = db.Order("posts.created_at " + orderDirection)
-	if category != "" {
-		db = db.Where("categories.slug = ?", category)
-	}
-	if tag != "" {
-		db = db.Where("tags.slug = ?", tag)
-	}
-	err := db.Limit(pageSize).Offset((page - 1) * pageSize).Find(&posts).Error
-
-	return posts, err
+	return hydratePostRelations(posts)
 }
 
 func sanitizeSortOrder(input string) string {
@@ -121,20 +102,22 @@ func BatchAddTagsToPost(postID uint64, tagIDs []uint64) error {
 // 统计文章总数（用于分页）
 func CountPosts(q, sort, category, tag, status string) (int64, error) {
 	var count int64
+	db := buildPostFilterQuery(q, sort, category, tag, status)
+	err := db.Distinct("posts.id").Count(&count).Error
+	return count, err
+}
+
+func buildPostFilterQuery(q, sort, category, tag, status string) *gorm.DB {
 	db := database.GetDB().Model(&models.Post{})
 
 	if status != "" {
-		db = db.Where("status = ?", status)
+		db = db.Where("posts.status = ?", status)
 	}
 
+	q = strings.TrimSpace(q)
 	if q != "" {
-		// 注意：前后通配符无法使用索引，性能较差
-		// 对于大量数据，建议：
-		// 1. 使用前缀匹配：q+"%"
-		// 2. 或使用MySQL全文索引（FULLTEXT）进行全文搜索
-		// 3. 或使用Elasticsearch等搜索引擎
-		// 当前保持原逻辑，但添加注释说明性能问题
-		db = db.Where("title LIKE ? OR content LIKE ?", "%"+q+"%", "%"+q+"%")
+		likePattern := "%" + q + "%"
+		db = db.Where("posts.title LIKE ? OR posts.excerpt LIKE ?", likePattern, likePattern)
 	}
 
 	if category != "" {
@@ -149,8 +132,106 @@ func CountPosts(q, sort, category, tag, status string) (int64, error) {
 			Where("tags.slug = ?", tag)
 	}
 
-	err := db.Count(&count).Error
-	return count, err
+	orderDirection := sanitizeSortOrder(sort)
+	return db.Order("posts.published_at IS NULL ASC").
+		Order("posts.published_at " + orderDirection).
+		Order("posts.created_at " + orderDirection)
+}
+
+func hydratePostRelations(posts []models.Post) ([]models.PostWithRelations, error) {
+	if len(posts) == 0 {
+		return []models.PostWithRelations{}, nil
+	}
+
+	postIDs := make([]uint64, 0, len(posts))
+	for _, post := range posts {
+		postIDs = append(postIDs, post.ID)
+	}
+
+	categoryMap, err := getPostCategoryRelations(postIDs)
+	if err != nil {
+		return nil, err
+	}
+	tagMap, err := getPostTagRelations(postIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]models.PostWithRelations, 0, len(posts))
+	for _, post := range posts {
+		item := models.PostWithRelations{Post: post}
+		if rel := categoryMap[post.ID]; rel != nil {
+			item.CategoryNames = rel.names
+			item.CategoryIDs = rel.ids
+		}
+		if rel := tagMap[post.ID]; rel != nil {
+			item.TagNames = rel.names
+			item.TagIDs = rel.ids
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+type relationValues struct {
+	names []string
+	ids   []uint64
+}
+
+func getPostCategoryRelations(postIDs []uint64) (map[uint64]*relationValues, error) {
+	type row struct {
+		PostID       uint64
+		CategoryID   uint64
+		CategoryName string
+	}
+	var rows []row
+	err := database.GetDB().Table("post_categories").
+		Select("post_categories.post_id, categories.id AS category_id, categories.name AS category_name").
+		Joins("JOIN categories ON categories.id = post_categories.category_id").
+		Where("post_categories.post_id IN ?", postIDs).
+		Order("post_categories.post_id ASC, categories.id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint64]*relationValues, len(postIDs))
+	for _, row := range rows {
+		if _, ok := result[row.PostID]; !ok {
+			result[row.PostID] = &relationValues{}
+		}
+		result[row.PostID].ids = append(result[row.PostID].ids, row.CategoryID)
+		result[row.PostID].names = append(result[row.PostID].names, row.CategoryName)
+	}
+	return result, nil
+}
+
+func getPostTagRelations(postIDs []uint64) (map[uint64]*relationValues, error) {
+	type row struct {
+		PostID  uint64
+		TagID   uint64
+		TagName string
+	}
+	var rows []row
+	err := database.GetDB().Table("post_tags").
+		Select("post_tags.post_id, tags.id AS tag_id, tags.name AS tag_name").
+		Joins("JOIN tags ON tags.id = post_tags.tag_id").
+		Where("post_tags.post_id IN ?", postIDs).
+		Order("post_tags.post_id ASC, tags.id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint64]*relationValues, len(postIDs))
+	for _, row := range rows {
+		if _, ok := result[row.PostID]; !ok {
+			result[row.PostID] = &relationValues{}
+		}
+		result[row.PostID].ids = append(result[row.PostID].ids, row.TagID)
+		result[row.PostID].names = append(result[row.PostID].names, row.TagName)
+	}
+	return result, nil
 }
 
 // 删除文章的所有分类关联

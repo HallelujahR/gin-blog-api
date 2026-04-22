@@ -1,11 +1,18 @@
 package initializer
 
-import "api/analytics"
+import (
+	"api/analytics"
+	"api/configs"
+	"fmt"
+)
 
 func Run() {
 	InitConfig()
 	InitDB()
-	analytics.StartETLWorker()
+	cfg := configs.Load()
+	if cfg.AnalyticsEnabled {
+		analytics.StartETLWorker(cfg.AnalyticsETL)
+	}
 	r := InitRouter()
-	r.Run(":8080")
+	_ = r.Run(fmt.Sprintf(":%s", cfg.HTTPPort))
 }

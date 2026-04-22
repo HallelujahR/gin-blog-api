@@ -20,6 +20,9 @@ func GetStatsCache(ctx context.Context) (StatsResult, bool) {
 		fmt.Printf("[stats] redis client error: %v\n", err)
 		return StatsResult{}, false
 	}
+	if client == nil {
+		return StatsResult{}, false
+	}
 
 	value, err := client.Get(ctx, statsCacheKey).Bytes()
 	if err != nil {
@@ -52,6 +55,9 @@ func SetStatsCache(ctx context.Context, data StatsResult, ttl time.Duration) err
 	if clientErr != nil {
 		fmt.Printf("[stats] redis client error when set: %v\n", clientErr)
 		return clientErr
+	}
+	if client == nil {
+		return nil
 	}
 	if err := client.Set(ctx, statsCacheKey, payload, ttl).Err(); err != nil {
 		fmt.Printf("[stats] redis set error: %v\n", err)

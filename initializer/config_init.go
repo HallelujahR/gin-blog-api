@@ -1,6 +1,7 @@
 package initializer
 
+import "api/configs"
+
 func InitConfig() {
-	// TODO: 调用 configs 包方法加载配置
-	// _ = configs // 占位
+	_ = configs.Load()
 }

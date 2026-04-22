@@ -54,20 +54,6 @@ func ListPostsWithParams(page, pageSize int, q, sort, category, tag string, stat
 	if err != nil {
 		return nil, err
 	}
-
-	// 转换分类和标签数据
-	for i := range posts {
-		fmt.Println(posts[i].CategoryNamesStr)
-		if posts[i].CategoryNamesStr != "" {
-			posts[i].CategoryNames = strings.Split(posts[i].CategoryNamesStr, ",")
-			posts[i].CategoryIDs = stringToUint64Slice(posts[i].CategoryIDsStr)
-		}
-		if posts[i].TagNamesStr != "" {
-			posts[i].TagNames = strings.Split(posts[i].TagNamesStr, ",")
-			posts[i].TagIDs = stringToUint64Slice(posts[i].TagIDsStr)
-		}
-	}
-
 	return posts, nil
 }
 
@@ -241,18 +227,6 @@ func ListPostsWithPagination(page, pageSize int, q, sort, category, tag, status 
 	posts, err := dao.ListPostsWithParams(page, pageSize, q, sort, category, tag, status)
 	if err != nil {
 		return nil, err
-	}
-
-	// 转换分类和标签数据
-	for i := range posts {
-		if posts[i].CategoryNamesStr != "" {
-			posts[i].CategoryNames = strings.Split(posts[i].CategoryNamesStr, ",")
-			posts[i].CategoryIDs = stringToUint64Slice(posts[i].CategoryIDsStr)
-		}
-		if posts[i].TagNamesStr != "" {
-			posts[i].TagNames = strings.Split(posts[i].TagNamesStr, ",")
-			posts[i].TagIDs = stringToUint64Slice(posts[i].TagIDsStr)
-		}
 	}
 
 	// 计算总页数

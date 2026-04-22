@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"api/models"
 	"api/service"
@@ -25,6 +27,25 @@ func CreateComment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	req.Content = strings.TrimSpace(req.Content)
+	req.AuthorName = strings.TrimSpace(req.AuthorName)
+	req.AuthorEmail = strings.TrimSpace(req.AuthorEmail)
+	if req.PostID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "post_id 无效"})
+		return
+	}
+	if len([]rune(req.Content)) < 2 || len([]rune(req.Content)) > 2000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "评论内容长度需在 2 到 2000 个字符之间"})
+		return
+	}
+	if len([]rune(req.AuthorName)) < 1 || len([]rune(req.AuthorName)) > 40 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "昵称长度需在 1 到 40 个字符之间"})
+		return
+	}
+	if !isValidEmail(req.AuthorEmail) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱格式不正确"})
+		return
+	}
 	comment := models.Comment{
 		Content:      req.Content,
 		AuthorName:   req.AuthorName,
@@ -40,6 +61,15 @@ func CreateComment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"comment": comment})
+}
+
+var emailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+
+func isValidEmail(email string) bool {
+	if len(email) > 120 {
+		return false
+	}
+	return emailPattern.MatchString(email)
 }
 
 // 详情
