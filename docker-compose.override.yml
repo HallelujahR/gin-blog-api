@@ -1,0 +1,20 @@
+# Docker Compose 部署配置（可选）
+# 与原有 docker-compose.yml 配合使用
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./uploads:/var/www/uploads:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    # 原有服务通过 nginx 反向代理
+    expose:
+      - "8080"

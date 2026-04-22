@@ -30,19 +30,35 @@ func ListPosts() ([]models.Post, error) {
 // 文章列表带参数
 
 func ListPostsWithParams(page int, pageSize int, q, sort, category, tag, status string) ([]models.PostWithRelations, error) {
-	var posts []models.Post
-	db := buildPostFilterQuery(q, sort, category, tag, status)
-
-	err := db.
-		Select("posts.*").
-		Distinct("posts.id").
-		Limit(pageSize).
-		Offset((page - 1) * pageSize).
-		Find(&posts).Error
+	postIDs, err := listOrderedPostIDs(page, pageSize, q, sort, category, tag, status)
 	if err != nil {
 		return nil, err
 	}
-	return hydratePostRelations(posts)
+
+	if len(postIDs) == 0 {
+		return []models.PostWithRelations{}, nil
+	}
+
+	var posts []models.Post
+	if err := database.GetDB().Where("id IN ?", postIDs).Find(&posts).Error; err != nil {
+		return nil, err
+	}
+
+	postMap := make(map[uint64]models.Post, len(posts))
+	for _, post := range posts {
+		postMap[post.ID] = post
+	}
+
+	orderedPosts := make([]models.Post, 0, len(postIDs))
+	for _, id := range postIDs {
+		post, ok := postMap[id]
+		if !ok {
+			continue
+		}
+		orderedPosts = append(orderedPosts, post)
+	}
+
+	return hydratePostRelations(orderedPosts)
 }
 
 func sanitizeSortOrder(input string) string {
@@ -105,6 +121,28 @@ func CountPosts(q, sort, category, tag, status string) (int64, error) {
 	db := buildPostFilterQuery(q, sort, category, tag, status)
 	err := db.Distinct("posts.id").Count(&count).Error
 	return count, err
+}
+
+func listOrderedPostIDs(page int, pageSize int, q, sort, category, tag, status string) ([]uint64, error) {
+	type postIDRow struct {
+		ID uint64
+	}
+
+	var rows []postIDRow
+	err := buildPostFilterQuery(q, sort, category, tag, status).
+		Select("DISTINCT posts.id, posts.published_at, posts.created_at").
+		Limit(pageSize).
+		Offset((page - 1) * pageSize).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	return ids, nil
 }
 
 func buildPostFilterQuery(q, sort, category, tag, status string) *gorm.DB {
