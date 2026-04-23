@@ -6,6 +6,7 @@ require (
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/redis/go-redis/v9 v9.5.1
 	golang.org/x/crypto v0.22.0

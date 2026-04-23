@@ -1,14 +1,22 @@
 package drawguess
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 var manager = NewManager()
+
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
 
 func CreateRoom(c *gin.Context) {
 	var input CreateRoomInput
@@ -47,7 +55,7 @@ func GetRoom(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"room": view})
 }
 
-func StreamRoom(c *gin.Context) {
+func SocketRoom(c *gin.Context) {
 	roomID := c.Param("roomId")
 	playerID := c.Query("player_id")
 	if strings.TrimSpace(playerID) == "" {
@@ -61,37 +69,57 @@ func StreamRoom(c *gin.Context) {
 		return
 	}
 
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	conn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	defer manager.Disconnect(roomID, playerID)
 
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "stream not supported"})
+	_ = conn.SetReadDeadline(time.Now().Add(65 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(65 * time.Second))
+	})
+
+	if err := conn.WriteMessage(websocket.TextMessage, initial); err != nil {
 		return
 	}
 
-	writeSSE(c, initial)
-	flusher.Flush()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			_, payload, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if err := handleSocketMessage(roomID, playerID, payload); err != nil {
+				_ = writeSocketJSON(conn, eventEnvelope{
+					Type: "error",
+					Data: gin.H{"message": err.Error()},
+				})
+			}
+		}
+	}()
 
-	pingTicker := time.NewTicker(15 * time.Second)
+	pingTicker := time.NewTicker(20 * time.Second)
 	defer pingTicker.Stop()
-	defer manager.Disconnect(roomID, playerID)
 
 	for {
 		select {
-		case <-c.Request.Context().Done():
+		case <-done:
 			return
 		case payload, ok := <-ch:
 			if !ok {
 				return
 			}
-			writeSSE(c, payload)
-			flusher.Flush()
+			if err := conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+				return
+			}
 		case <-pingTicker.C:
-			_, _ = c.Writer.Write([]byte(": ping\n\n"))
-			flusher.Flush()
+			if err := conn.WriteMessage(websocket.PingMessage, []byte("ping")); err != nil {
+				return
+			}
 		}
 	}
 }
@@ -160,8 +188,64 @@ func LeaveRoom(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-func writeSSE(c *gin.Context, payload []byte) {
-	_, _ = c.Writer.Write([]byte("data: "))
-	_, _ = c.Writer.Write(payload)
-	_, _ = c.Writer.Write([]byte("\n\n"))
+type socketInboundEnvelope struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+func handleSocketMessage(roomID, playerID string, payload []byte) error {
+	var envelope socketInboundEnvelope
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return err
+	}
+
+	switch envelope.Type {
+	case "guess":
+		var input GuessInput
+		if err := json.Unmarshal(envelope.Data, &input); err != nil {
+			return err
+		}
+		input.PlayerID = playerID
+		_, err := manager.SubmitGuess(roomID, input)
+		return err
+	case "stroke":
+		var input StrokeInput
+		if err := json.Unmarshal(envelope.Data, &input); err != nil {
+			return err
+		}
+		input.PlayerID = playerID
+		return manager.AddStroke(roomID, input)
+	case "start":
+		var input StartGameInput
+		if len(envelope.Data) > 0 {
+			if err := json.Unmarshal(envelope.Data, &input); err != nil {
+				return err
+			}
+		}
+		input.PlayerID = playerID
+		_, err := manager.StartGame(roomID, input)
+		return err
+	case "clear":
+		input := ClearInput{PlayerID: playerID}
+		if len(envelope.Data) > 0 {
+			if err := json.Unmarshal(envelope.Data, &input); err != nil {
+				return err
+			}
+			input.PlayerID = playerID
+		}
+		return manager.ClearCanvas(roomID, input)
+	case "leave":
+		manager.RemovePlayer(roomID, playerID, false)
+		return nil
+	default:
+		return nil
+	}
+}
+
+func writeSocketJSON(conn *websocket.Conn, payload interface{}) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return conn.WriteMessage(websocket.TextMessage, data)
 }

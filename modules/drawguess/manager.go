@@ -17,13 +17,13 @@ const (
 	maxPlayerNameLen      = 16
 	maxMessagesPerRoom    = 40
 	maxCanvasActions      = 320
-	maxStrokePoints       = 24
+	maxStrokePoints       = 4096
 	roundDuration         = 80 * time.Second
 	roundCooldown         = 3 * time.Second
 	roomIdleTTL           = 20 * time.Minute
 	disconnectGracePeriod = 20 * time.Second
-	minStrokeInterval     = 35 * time.Millisecond
-	eventBufferSize       = 48
+	eventBufferSize       = 256
+	dispatchWaitTimeout   = 80 * time.Millisecond
 	defaultBrushWidth     = 4
 )
 
@@ -63,7 +63,6 @@ type Player struct {
 	Score          int
 	IsConnected    bool
 	LastSeenAt     time.Time
-	LastStrokeAt   time.Time
 	PendingRemoval int64
 }
 
@@ -83,12 +82,14 @@ type Point struct {
 
 type CanvasAction struct {
 	ID        string    `json:"id"`
+	StrokeID  string    `json:"stroke_id,omitempty"`
 	PlayerID  string    `json:"player_id"`
 	Player    string    `json:"player_name"`
 	Kind      string    `json:"kind"`
 	Color     string    `json:"color,omitempty"`
 	Width     int       `json:"width,omitempty"`
 	Tool      string    `json:"tool,omitempty"`
+	Final     bool      `json:"final,omitempty"`
 	Points    []Point   `json:"points,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -147,9 +148,11 @@ type LeaveRoomInput struct {
 
 type StrokeInput struct {
 	PlayerID string  `json:"player_id"`
+	StrokeID string  `json:"stroke_id"`
 	Color    string  `json:"color"`
 	Width    int     `json:"width"`
 	Tool     string  `json:"tool"`
+	Final    bool    `json:"final"`
 	Points   []Point `json:"points"`
 }
 
@@ -449,10 +452,6 @@ func (m *Manager) AddStroke(roomID string, input StrokeInput) error {
 		m.mu.Unlock()
 		return fmt.Errorf("只有当前画手可以绘画")
 	}
-	if time.Since(player.LastStrokeAt) < minStrokeInterval {
-		m.mu.Unlock()
-		return nil
-	}
 	if len(input.Points) < 2 || len(input.Points) > maxStrokePoints {
 		m.mu.Unlock()
 		return fmt.Errorf("单次绘制点数不合法")
@@ -460,18 +459,22 @@ func (m *Manager) AddStroke(roomID string, input StrokeInput) error {
 
 	action := CanvasAction{
 		ID:        newID("canvas"),
+		StrokeID:  strings.TrimSpace(input.StrokeID),
 		PlayerID:  player.ID,
 		Player:    player.Name,
 		Kind:      "stroke",
 		Color:     normalizeColor(input.Color),
 		Width:     normalizeBrushWidth(input.Width),
 		Tool:      normalizeTool(input.Tool),
+		Final:     input.Final,
 		Points:    input.Points,
 		CreatedAt: time.Now(),
 	}
-	player.LastStrokeAt = action.CreatedAt
+	if action.StrokeID == "" {
+		action.StrokeID = newID("stroke")
+	}
 	room.LastActiveAt = action.CreatedAt
-	room.appendCanvasActionLocked(action)
+	room.upsertCanvasActionLocked(action)
 	dispatches := m.collectCanvasDispatchesLocked(room, action)
 	m.mu.Unlock()
 	sendDispatches(dispatches)
@@ -741,6 +744,19 @@ func (r *Room) appendCanvasActionLocked(action CanvasAction) {
 	}
 }
 
+func (r *Room) upsertCanvasActionLocked(action CanvasAction) {
+	if action.Kind == "stroke" && action.StrokeID != "" {
+		for i := len(r.CanvasActions) - 1; i >= 0; i-- {
+			existing := r.CanvasActions[i]
+			if existing.Kind == "stroke" && existing.PlayerID == action.PlayerID && existing.StrokeID == action.StrokeID {
+				r.CanvasActions[i] = action
+				return
+			}
+		}
+	}
+	r.appendCanvasActionLocked(action)
+}
+
 type dispatch struct {
 	ch      chan []byte
 	payload []byte
@@ -755,7 +771,7 @@ func sendDispatches(dispatches []dispatch) {
 	for _, item := range dispatches {
 		select {
 		case item.ch <- item.payload:
-		default:
+		case <-time.After(dispatchWaitTimeout):
 		}
 	}
 }
