@@ -21,6 +21,7 @@ func InitDB() {
 	ensureTable(db, &models.HotData{})
 	ensureTable(db, &models.Page{})
 	ensureTable(db, &models.GuestbookMessage{})
+	ensureTable(db, &models.Moment{})
 	ensureTable(db, &models.PostViewStat{})
 	ensureTable(db, &models.TrafficSnapshot{})
 	ensureTable(db, &models.ImageCompressStats{})

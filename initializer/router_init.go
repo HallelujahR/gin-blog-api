@@ -49,6 +49,7 @@ func InitRouter() *gin.Engine {
 	routes.RegisterTagRoutes(r)
 	routes.RegisterLikeRoutes(r)
 	routes.RegisterPageRoutes(r)
+	routes.RegisterMomentRoutes(r)
 	routes.RegisterGuestbookRoutes(r)
 	routes.RegisterHotDataRoutes(r)
 	routes.RegisterStatsRoutes(r)
@@ -61,6 +62,7 @@ func InitRouter() *gin.Engine {
 	adminRoutes.RegisterAdminCategoryRoutes(r)
 	adminRoutes.RegisterAdminTagRoutes(r)
 	adminRoutes.RegisterAdminCommentRoutes(r)
+	adminRoutes.RegisterAdminMomentRoutes(r)
 	adminRoutes.RegisterAdminGuestbookRoutes(r)
 	adminRoutes.RegisterAdminPageRoutes(r)   // 页面管理接口
 	adminRoutes.RegisterAdminUploadRoutes(r) // 文件上传接口
