@@ -15,7 +15,10 @@ func GetCommentByID(id uint64) (*models.Comment, error) {
 }
 func ListCommentsByPost(postID uint64) ([]models.Comment, error) {
 	var comments []models.Comment
-	err := database.GetDB().Where("post_id = ?", postID).Find(&comments).Error
+	err := database.GetDB().
+		Where("post_id = ? AND status = ?", postID, "approved").
+		Order("created_at ASC").
+		Find(&comments).Error
 	return comments, err
 }
 func UpdateComment(c *models.Comment) error {
@@ -37,20 +40,20 @@ func DeleteComments(ids []uint64) error {
 func CountComments(postID uint64, status, q string) (int64, error) {
 	var count int64
 	db := database.GetDB().Model(&models.Comment{})
-	
+
 	if postID > 0 {
 		db = db.Where("post_id = ?", postID)
 	}
-	
+
 	if status != "" {
 		db = db.Where("status = ?", status)
 	}
-	
+
 	if q != "" {
-		db = db.Where("content LIKE ? OR author_name LIKE ? OR author_email LIKE ?", 
+		db = db.Where("content LIKE ? OR author_name LIKE ? OR author_email LIKE ?",
 			"%"+q+"%", "%"+q+"%", "%"+q+"%")
 	}
-	
+
 	err := db.Count(&count).Error
 	return count, err
 }
@@ -59,32 +62,32 @@ func CountComments(postID uint64, status, q string) (int64, error) {
 func ListCommentsWithParams(page, pageSize int, postID uint64, status, q, sort string) ([]models.Comment, error) {
 	var comments []models.Comment
 	db := database.GetDB().Model(&models.Comment{})
-	
+
 	if postID > 0 {
 		db = db.Where("post_id = ?", postID)
 	}
-	
+
 	if status != "" {
 		db = db.Where("status = ?", status)
 	}
-	
+
 	if q != "" {
-		db = db.Where("content LIKE ? OR author_name LIKE ? OR author_email LIKE ?", 
+		db = db.Where("content LIKE ? OR author_name LIKE ? OR author_email LIKE ?",
 			"%"+q+"%", "%"+q+"%", "%"+q+"%")
 	}
-	
+
 	// 排序
 	if sort != "" {
 		db = db.Order("created_at " + sort)
 	} else {
 		db = db.Order("created_at DESC")
 	}
-	
+
 	// 分页
 	if pageSize > 0 {
 		db = db.Limit(pageSize).Offset((page - 1) * pageSize)
 	}
-	
+
 	err := db.Find(&comments).Error
 	return comments, err
 }

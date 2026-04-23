@@ -60,7 +60,10 @@ func CreateComment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"comment": comment})
+	c.JSON(http.StatusOK, gin.H{
+		"comment": comment,
+		"notice":  "评论已提交，审核通过后会显示出来",
+	})
 }
 
 var emailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
