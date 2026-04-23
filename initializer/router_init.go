@@ -55,6 +55,7 @@ func InitRouter() *gin.Engine {
 	routes.RegisterStatsRoutes(r)
 	// 公开的工具类接口（例如图片压缩），不需要后台登录
 	routes.RegisterCompressRoutes(r)
+	routes.RegisterDrawGuessRoutes(r)
 
 	// ========== 后台管理API（需要管理员权限）==========
 	adminRoutes.RegisterAdminUserRoutes(r)
