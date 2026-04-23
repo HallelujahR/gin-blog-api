@@ -3,35 +3,35 @@ package initializer
 import (
 	"api/database"
 	"api/models"
+
+	"gorm.io/gorm"
 )
 
 func InitDB() {
 	db := database.GetDB()
-	migrations := []interface{}{
-		&models.User{},
-		&models.UserSession{},
-		&models.Tag{},
-		&models.Post{},
-		&models.PostCategory{},
-		&models.PostTag{},
-		&models.Comment{},
-		&models.Like{},
-		&models.HotData{},
-		&models.Page{},
-		&models.GuestbookMessage{},
-		&models.PostViewStat{},
-		&models.TrafficSnapshot{},
-		&models.ImageCompressStats{},
-		&models.ImageCompressJob{},
-	}
+	ensureTable(db, &models.User{})
+	ensureTable(db, &models.UserSession{})
+	ensureTable(db, &models.Category{})
+	ensureTable(db, &models.Tag{})
+	ensureTable(db, &models.Post{})
+	ensureTable(db, &models.PostCategory{})
+	ensureTable(db, &models.PostTag{})
+	ensureTable(db, &models.Comment{})
+	ensureTable(db, &models.Like{})
+	ensureTable(db, &models.HotData{})
+	ensureTable(db, &models.Page{})
+	ensureTable(db, &models.GuestbookMessage{})
+	ensureTable(db, &models.PostViewStat{})
+	ensureTable(db, &models.TrafficSnapshot{})
+	ensureTable(db, &models.ImageCompressStats{})
+	ensureTable(db, &models.ImageCompressJob{})
+}
 
-	if !db.Migrator().HasTable(&models.Category{}) {
-		migrations = append([]interface{}{&models.Category{}}, migrations...)
+func ensureTable(db *gorm.DB, model interface{}) {
+	if db.Migrator().HasTable(model) {
+		return
 	}
-
-	for _, model := range migrations {
-		if err := db.AutoMigrate(model); err != nil {
-			panic("数据库自动迁移失败: " + err.Error())
-		}
+	if err := db.AutoMigrate(model); err != nil {
+		panic("数据库自动建表失败: " + err.Error())
 	}
 }
