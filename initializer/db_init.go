@@ -7,7 +7,7 @@ import (
 
 func InitDB() {
 	db := database.GetDB()
-	db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&models.User{},
 		&models.UserSession{},
 		&models.Category{},
@@ -24,5 +24,7 @@ func InitDB() {
 		&models.TrafficSnapshot{},
 		&models.ImageCompressStats{},
 		&models.ImageCompressJob{},
-	)
+	); err != nil {
+		panic("数据库自动迁移失败: " + err.Error())
+	}
 }
