@@ -1,7 +1,7 @@
 package main
 
 import (
-	"api/service"
+	"api/internal/modules/media"
 	"flag"
 	"fmt"
 	"log"
@@ -9,7 +9,7 @@ import (
 
 func main() {
 	var (
-		dir             = flag.String("dir", service.ImageUploadDir, "需要扫描的图片目录")
+		dir             = flag.String("dir", media.ImageUploadDir, "需要扫描的图片目录")
 		backupDir       = flag.String("backup-dir", "./uploads/image_backups", "原图备份目录")
 		quality         = flag.Int("quality", 80, "JPEG 压缩质量，范围 10-95")
 		minSavingsBytes = flag.Int64("min-savings-bytes", 4*1024, "最少节省多少字节才覆盖原图")
@@ -18,7 +18,7 @@ func main() {
 	)
 	flag.Parse()
 
-	report, err := service.OptimizeLocalImages(service.LocalImageOptimizeOptions{
+	report, err := media.OptimizeLocalImages(media.LocalImageOptimizeOptions{
 		RootDir:         *dir,
 		BackupDir:       *backupDir,
 		Quality:         *quality,

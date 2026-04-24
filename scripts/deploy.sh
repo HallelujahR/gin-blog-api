@@ -67,7 +67,7 @@ fi
 
 build_binary() {
   log "编译 Go 项目 (GOOS=linux GOARCH=amd64)..."
-  (cd "$PROJECT_ROOT" && GOOS=linux GOARCH=amd64 go build -o "$BINARY_PATH" ./)
+  (cd "$PROJECT_ROOT" && GOOS=linux GOARCH=amd64 go build -o "$BINARY_PATH" ./cmd/server)
   log "二进制输出: $BINARY_PATH"
 }
 

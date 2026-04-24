@@ -12,7 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"api/service"
+	"api/internal/platform/geoip"
+	"api/internal/platform/redisstore"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -42,7 +43,7 @@ func main() {
 
 	start, end := parseRange(*startDate, *endDate)
 
-	client, err := service.GetRedisClient()
+	client, err := redisstore.GetClient()
 	if err != nil || client == nil {
 		fmt.Printf("Redis 客户端不可用: %v\n", err)
 		os.Exit(1)
@@ -184,8 +185,8 @@ func writeToRedis(client *redis.Client, entry rawEntry) error {
 	pipe.Incr(ctx, reqKey)
 	pipe.Expire(ctx, reqKey, redisKeyTTL)
 
-	if entry.IP != "" && service.IsChinaIP(entry.IP) {
-		region := service.LookupRegion(entry.IP)
+	if entry.IP != "" && geoip.IsChinaIP(entry.IP) {
+		region := geoip.LookupRegion(entry.IP)
 		if region != "" {
 			pipe.HIncrBy(ctx, regionKey, region, 1)
 			pipe.Expire(ctx, regionKey, redisKeyTTL)
