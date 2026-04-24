@@ -33,6 +33,19 @@ var wordLibrary = []string{
 	"拖鞋", "星星", "饺子", "狐狸", "烤鱼", "风筝", "汉堡", "绿茶", "仙人掌", "羽毛球",
 }
 
+var allowedAvatarIDs = map[string]struct{}{
+	"boy-default":         {},
+	"woman-default":       {},
+	"man-medium":          {},
+	"woman-medium-light":  {},
+	"old-man-medium-dark": {},
+	"dog-face":            {},
+	"cat-face":            {},
+	"fox":                 {},
+	"panda":               {},
+	"monkey-face":         {},
+}
+
 type Manager struct {
 	mu    sync.Mutex
 	rooms map[string]*Room
@@ -60,6 +73,7 @@ type Room struct {
 type Player struct {
 	ID             string
 	Name           string
+	Avatar         string
 	Score          int
 	IsConnected    bool
 	LastSeenAt     time.Time
@@ -97,6 +111,7 @@ type CanvasAction struct {
 type PlayerView struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
+	Avatar      string `json:"avatar"`
 	Score       int    `json:"score"`
 	IsHost      bool   `json:"is_host"`
 	IsDrawer    bool   `json:"is_drawer"`
@@ -127,10 +142,12 @@ type RoomJoinResult struct {
 
 type CreateRoomInput struct {
 	PlayerName string `json:"player_name"`
+	Avatar     string `json:"avatar"`
 }
 
 type JoinRoomInput struct {
 	PlayerName string `json:"player_name"`
+	Avatar     string `json:"avatar"`
 }
 
 type GuessInput struct {
@@ -168,7 +185,7 @@ func NewManager() *Manager {
 	return m
 }
 
-func (m *Manager) CreateRoom(playerName string) (RoomJoinResult, error) {
+func (m *Manager) CreateRoom(playerName, avatar string) (RoomJoinResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -180,6 +197,7 @@ func (m *Manager) CreateRoom(playerName string) (RoomJoinResult, error) {
 	if err != nil {
 		return RoomJoinResult{}, err
 	}
+	avatar = normalizeAvatar(avatar)
 
 	roomID := m.generateRoomIDLocked()
 	playerID := newID("player")
@@ -200,6 +218,7 @@ func (m *Manager) CreateRoom(playerName string) (RoomJoinResult, error) {
 	room.Players[playerID] = &Player{
 		ID:          playerID,
 		Name:        name,
+		Avatar:      avatar,
 		IsConnected: true,
 		LastSeenAt:  now,
 	}
@@ -217,7 +236,7 @@ func (m *Manager) CreateRoom(playerName string) (RoomJoinResult, error) {
 	return RoomJoinResult{RoomID: roomID, PlayerID: playerID, Room: room.snapshotFor(playerID)}, nil
 }
 
-func (m *Manager) JoinRoom(roomID, playerName string) (RoomJoinResult, error) {
+func (m *Manager) JoinRoom(roomID, playerName, avatar string) (RoomJoinResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -233,6 +252,7 @@ func (m *Manager) JoinRoom(roomID, playerName string) (RoomJoinResult, error) {
 	if err != nil {
 		return RoomJoinResult{}, err
 	}
+	avatar = normalizeAvatar(avatar)
 	for _, p := range room.Players {
 		if strings.EqualFold(p.Name, name) {
 			return RoomJoinResult{}, fmt.Errorf("房间内已存在同名玩家")
@@ -244,6 +264,7 @@ func (m *Manager) JoinRoom(roomID, playerName string) (RoomJoinResult, error) {
 	room.Players[playerID] = &Player{
 		ID:          playerID,
 		Name:        name,
+		Avatar:      avatar,
 		IsConnected: true,
 		LastSeenAt:  now,
 	}
@@ -672,6 +693,7 @@ func (r *Room) snapshotFor(playerID string) RoomView {
 		players = append(players, PlayerView{
 			ID:          p.ID,
 			Name:        p.Name,
+			Avatar:      p.Avatar,
 			Score:       p.Score,
 			IsHost:      id == r.HostPlayerID,
 			IsDrawer:    id == r.CurrentDrawerID,
@@ -785,6 +807,14 @@ func normalizePlayerName(name string) (string, error) {
 		return "", fmt.Errorf("玩家名称不能超过 %d 个字符", maxPlayerNameLen)
 	}
 	return name, nil
+}
+
+func normalizeAvatar(avatar string) string {
+	avatar = strings.TrimSpace(strings.ToLower(avatar))
+	if _, ok := allowedAvatarIDs[avatar]; ok {
+		return avatar
+	}
+	return "boy-default"
 }
 
 func normalizeColor(color string) string {

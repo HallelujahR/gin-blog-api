@@ -24,7 +24,7 @@ func CreateRoom(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
 	}
-	result, err := manager.CreateRoom(input.PlayerName)
+	result, err := manager.CreateRoom(input.PlayerName, input.Avatar)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -38,7 +38,7 @@ func JoinRoom(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
 		return
 	}
-	result, err := manager.JoinRoom(c.Param("roomId"), input.PlayerName)
+	result, err := manager.JoinRoom(c.Param("roomId"), input.PlayerName, input.Avatar)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
